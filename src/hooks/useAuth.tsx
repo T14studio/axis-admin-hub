@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       adminUser,
       loading,
-      isAdmin: !!adminUser || user?.email === "eticahostservidor@gmail.com",
+      isAdmin: !!adminUser,
       signIn,
       signOut,
       resetPassword,
