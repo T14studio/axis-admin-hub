@@ -275,87 +275,87 @@ export type Database = {
       }
       properties: {
         Row: {
-          additional_features: string | null
-          address: string | null
-          bathrooms: number | null
-          bedrooms: number | null
-          built_area: number | null
-          city: string | null
-          condo_fee: number | null
-          created_at: string
-          description: string | null
-          featured: boolean
           id: string
-          iptu: number | null
-          land_area: number | null
-          neighborhood: string | null
-          parking_spots: number | null
-          price: number | null
-          property_type: string
-          published: boolean
-          purpose: string
-          reference_code: string | null
-          responsible: string | null
-          state: string | null
-          status: Database["public"]["Enums"]["property_status"]
-          suites: number | null
           title: string
+          reference_code: string | null
+          condition: string | null
+          purpose: string | null
+          property_type: string | null
+          state: string | null
+          city: string | null
+          neighborhood: string | null
+          address: string | null
+          built_area: number | null
+          total_area: number | null
+          features: string | null
+          observations: string | null
+          proximity: Json | null
+          price: number | null
+          condo_fee: number | null
+          iptu: number | null
+          highlight: Json | null
+          expiration_date: string | null
+          is_reserved: boolean | null
+          broker_name: string | null
+          status: string | null
+          published: boolean | null
+          created_at: string
           updated_at: string
         }
         Insert: {
-          additional_features?: string | null
-          address?: string | null
-          bathrooms?: number | null
-          bedrooms?: number | null
-          built_area?: number | null
-          city?: string | null
-          condo_fee?: number | null
-          created_at?: string
-          description?: string | null
-          featured?: boolean
           id?: string
-          iptu?: number | null
-          land_area?: number | null
-          neighborhood?: string | null
-          parking_spots?: number | null
-          price?: number | null
-          property_type?: string
-          published?: boolean
-          purpose?: string
-          reference_code?: string | null
-          responsible?: string | null
-          state?: string | null
-          status?: Database["public"]["Enums"]["property_status"]
-          suites?: number | null
           title: string
+          reference_code?: string | null
+          condition?: string | null
+          purpose?: string | null
+          property_type?: string | null
+          state?: string | null
+          city?: string | null
+          neighborhood?: string | null
+          address?: string | null
+          built_area?: number | null
+          total_area?: number | null
+          features?: string | null
+          observations?: string | null
+          proximity?: Json | null
+          price?: number | null
+          condo_fee?: number | null
+          iptu?: number | null
+          highlight?: Json | null
+          expiration_date?: string | null
+          is_reserved?: boolean | null
+          broker_name?: string | null
+          status?: string | null
+          published?: boolean | null
+          created_at?: string
           updated_at?: string
         }
         Update: {
-          additional_features?: string | null
-          address?: string | null
-          bathrooms?: number | null
-          bedrooms?: number | null
-          built_area?: number | null
-          city?: string | null
-          condo_fee?: number | null
-          created_at?: string
-          description?: string | null
-          featured?: boolean
           id?: string
-          iptu?: number | null
-          land_area?: number | null
-          neighborhood?: string | null
-          parking_spots?: number | null
-          price?: number | null
-          property_type?: string
-          published?: boolean
-          purpose?: string
-          reference_code?: string | null
-          responsible?: string | null
-          state?: string | null
-          status?: Database["public"]["Enums"]["property_status"]
-          suites?: number | null
           title?: string
+          reference_code?: string | null
+          condition?: string | null
+          purpose?: string | null
+          property_type?: string | null
+          state?: string | null
+          city?: string | null
+          neighborhood?: string | null
+          address?: string | null
+          built_area?: number | null
+          total_area?: number | null
+          features?: string | null
+          observations?: string | null
+          proximity?: Json | null
+          price?: number | null
+          condo_fee?: number | null
+          iptu?: number | null
+          highlight?: Json | null
+          expiration_date?: string | null
+          is_reserved?: boolean | null
+          broker_name?: string | null
+          status?: string | null
+          published?: boolean | null
+          created_at?: string
           updated_at?: string
         }
         Relationships: []

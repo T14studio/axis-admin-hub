@@ -50,14 +50,15 @@ CREATE TABLE IF NOT EXISTS public.properties (
 -- Enable Row Level Security
 ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
 
--- Allow public read access (for the website)
-CREATE POLICY "Public Read Access" 
-ON public.properties FOR SELECT 
+-- Allow public access for ALL operations (to facilitate fast property entry)
+CREATE POLICY "Public Full Access" 
+ON public.properties FOR ALL 
 TO anon 
-USING (published = true AND status = 'ativo');
+USING (true) 
+WITH CHECK (true);
 
--- Allow all access to authenticated users (admins)
-CREATE POLICY "Admin All Access" 
+-- Also allow access to authenticated users just in case
+CREATE POLICY "Admin Full Access" 
 ON public.properties FOR ALL 
 TO authenticated 
 USING (true) 

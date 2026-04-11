@@ -38,9 +38,9 @@ export default function PropertyForm() {
 
   const [form, setForm] = useState<any>({
     title: "", reference_code: "", purpose: "venda", property_type: "apartamento",
-    description: "", price: null, condo_fee: null, iptu: null,
+    features: "", price: null, condo_fee: null, iptu: null,
     neighborhood: "", city: "", state: "", address: "",
-    built_area: null, total_area: null, additional_features: "",
+    built_area: null, total_area: null,
     observations: "", proximity: [], condition: "usado",
     highlight: [], expiration_date: "", is_reserved: false,
     broker_name: "", status: "ativo", published: true,
@@ -78,6 +78,13 @@ export default function PropertyForm() {
     delete payload.id;
     delete payload.created_at;
     delete payload.updated_at;
+
+    // Convert empty strings to null for database fields
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === "") {
+        payload[key] = null;
+      }
+    });
 
     if (isNew) {
       const { data, error } = await supabase.from("properties").insert(payload).select().single();
