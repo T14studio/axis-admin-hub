@@ -12,6 +12,7 @@ import { format } from "date-fns";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalLeads: 0, newLeads: 0, inProgressLeads: 0, convertedLeads: 0,
     activeProperties: 0, pendingProperties: 0,
@@ -26,37 +27,56 @@ export default function Dashboard() {
   }, []);
 
   async function fetchData() {
-    const [leadsRes, propsRes, contractsRes] = await Promise.all([
-      supabase.from("leads").select("*"),
-      supabase.from("properties").select("*"),
-      supabase.from("contracts").select("*, clients(full_name)"),
-    ]);
+    console.log("Dashboard: Starting fetch...");
+    try {
+      const { data: leadsData } = await supabase.from("leads").select("*");
+      const { data: propsData } = await supabase.from("properties").select("*");
+      const { data: contractsData } = await supabase.from("contracts").select("*");
 
-    const leads = leadsRes.data || [];
-    const props = propsRes.data || [];
-    const contracts = contractsRes.data || [];
+      const leads = Array.isArray(leadsData) ? [...leadsData] : [];
+      const props = Array.isArray(propsData) ? [...propsData] : [];
+      const contracts = Array.isArray(contractsData) ? [...contractsData] : [];
 
-    const today = new Date();
-    const thirtyDays = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+      console.log("Dashboard: Data fetched", { leads: leads.length, props: props.length, contracts: contracts.length });
 
-    setStats({
-      totalLeads: leads.length,
-      newLeads: leads.filter((l) => l.status === "novo").length,
-      inProgressLeads: leads.filter((l) => l.status === "em_atendimento").length,
-      convertedLeads: leads.filter((l) => l.status === "convertido").length,
-      activeProperties: props.filter((p) => p.status === "ativo" && p.published).length,
-      pendingProperties: props.filter((p) => p.status === "rascunho").length,
-      activeContracts: contracts.filter((c) => c.status === "ativo").length,
-      expiringContracts: contracts.filter((c) => c.end_date && new Date(c.end_date) <= thirtyDays && new Date(c.end_date) > today).length,
-      expiredContracts: contracts.filter((c) => c.end_date && new Date(c.end_date) < today && c.status !== "encerrado").length,
-    });
+      const today = new Date();
+      const thirtyDays = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    setRecentLeads(leads.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5));
-    setRecentProperties(props.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5));
-    setExpiringContracts(
-      contracts.filter((c) => c.end_date && new Date(c.end_date) <= thirtyDays && c.status !== "encerrado")
+      setStats({
+        totalLeads: leads.length,
+        newLeads: leads.filter((l) => l.status === "novo").length,
+        inProgressLeads: leads.filter((l) => l.status === "em_atendimento").length,
+        convertedLeads: leads.filter((l) => l.status === "convertido").length,
+        activeProperties: props.filter((p) => p.status === "ativo" && p.published).length,
+        pendingProperties: props.filter((p) => p.status === "rascunho").length,
+        activeContracts: contracts.filter((c) => c.status === "ativo").length,
+        expiringContracts: contracts.filter((c) => {
+          if (!c.end_date) return false;
+          const d = new Date(c.end_date);
+          return d instanceof Date && !isNaN(d.getTime()) && d <= thirtyDays && d > today;
+        }).length,
+        expiredContracts: contracts.filter((c) => {
+          if (!c.end_date) return false;
+          const d = new Date(c.end_date);
+          return d instanceof Date && !isNaN(d.getTime()) && d < today && c.status !== "encerrado";
+        }).length,
+      });
+
+      setRecentLeads(leads.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 5));
+      setRecentProperties(props.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 5));
+      setExpiringContracts(
+        contracts.filter((c) => {
+          if (!c.end_date) return false;
+          const d = new Date(c.end_date);
+          return d instanceof Date && !isNaN(d.getTime()) && d <= thirtyDays && c.status !== "encerrado";
+        })
         .sort((a, b) => new Date(a.end_date!).getTime() - new Date(b.end_date!).getTime()).slice(0, 5)
-    );
+      );
+    } catch (error) {
+      console.error("Dashboard: Error in fetchData", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const statusColors: Record<string, string> = {
@@ -65,6 +85,8 @@ export default function Dashboard() {
     convertido: "bg-success/10 text-success",
     perdido: "bg-destructive/10 text-destructive",
   };
+
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Carregando painel...</div>;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -96,7 +118,6 @@ export default function Dashboard() {
 
       {/* Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Leads */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">Leads Recentes</CardTitle>
@@ -116,7 +137,7 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground">{lead.email || lead.phone}</p>
                     </div>
                     <Badge variant="secondary" className={statusColors[lead.status] || ""}>
-                      {lead.status.replace("_", " ")}
+                      {lead.status?.replace("_", " ")}
                     </Badge>
                   </div>
                 ))}
@@ -125,7 +146,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Expiring Contracts Alert */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">Contratos Vencendo</CardTitle>
@@ -138,19 +158,29 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground py-4 text-center">Nenhum contrato próximo do vencimento</p>
             ) : (
               <div className="space-y-3">
-                {expiringContracts.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">#{c.contract_number}</p>
-                      <p className="text-xs text-muted-foreground">{(c as any).clients?.full_name}</p>
+                {expiringContracts.map((c) => {
+                  let formattedDate = "-";
+                  try {
+                    if (c.end_date) {
+                      const d = new Date(c.end_date);
+                      if (!isNaN(d.getTime())) formattedDate = format(d, "dd/MM/yyyy");
+                    }
+                  } catch (e) {}
+
+                  return (
+                    <div key={c.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">#{c.contract_number}</p>
+                        <p className="text-xs text-muted-foreground">{(c as any).clients?.full_name || "Cliente " + (c.client_cpf || "")}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className="bg-destructive/10 text-destructive">
+                          {formattedDate}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="secondary" className="bg-destructive/10 text-destructive">
-                        {c.end_date ? format(new Date(c.end_date), "dd/MM/yyyy") : "-"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -76,6 +76,7 @@ export default function PropertiesPage() {
                   <TableRow>
                     <TableHead>Título</TableHead>
                     <TableHead className="hidden md:table-cell">Código</TableHead>
+                    <TableHead>Condição</TableHead>
                     <TableHead>Preço</TableHead>
                     <TableHead className="hidden md:table-cell">Bairro</TableHead>
                     <TableHead>Status</TableHead>
@@ -88,6 +89,11 @@ export default function PropertiesPage() {
                     <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/properties/${p.id}`)}>
                       <TableCell className="font-medium">{p.title}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">{p.reference_code || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={p.condition === "novo" ? "border-primary text-primary" : "text-muted-foreground"}>
+                          {p.condition === "novo" ? "Novo" : "Usado"}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{formatPrice(p.price)}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">{p.neighborhood || "-"}</TableCell>
                       <TableCell>

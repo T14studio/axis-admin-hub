@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,8 +25,11 @@ export default function ContractForm() {
   const [files, setFiles] = useState<ContractFile[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  const [isNewClient, setIsNewClient] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
   const [form, setForm] = useState({
-    contract_number: "", client_id: "", client_cpf: "", property_id: "" as string | null,
+    contract_number: "", client_id: "", client_cpf: "", client_name: "", property_id: "" as string | null,
     contract_type: "locacao", start_date: "", end_date: "",
     status: "pendente" as any, value: "" as string | number, notes: "", pdf_url: "",
   });
@@ -66,31 +70,97 @@ export default function ContractForm() {
   }
 
   async function handleSave() {
-    if (!form.contract_number || !form.client_id || !form.start_date) {
+    if (!form.contract_number || (!form.client_id && !form.client_name) || !form.start_date) {
       toast.error("Preencha os campos obrigatórios"); return;
     }
     setSaving(true);
-    const payload = {
-      ...form,
-      value: form.value ? Number(form.value) : null,
-      property_id: form.property_id || null,
-      end_date: form.end_date || null,
-    };
-    if (isNew) {
-      const { data, error } = await supabase.from("contracts").insert(payload).select().single();
-      if (error) { toast.error(error.message); setSaving(false); return; }
-      toast.success("Contrato criado"); navigate(`/admin/contracts/${data.id}`);
-    } else {
-      const { error } = await supabase.from("contracts").update(payload).eq("id", id);
-      if (error) toast.error(error.message); else toast.success("Contrato atualizado");
+
+    try {
+      let clientId = form.client_id;
+
+      // Create new client if needed
+      if (isNewClient && form.client_name) {
+        const { data: newClient, error: clientErr } = await supabase
+          .from("clients")
+          .insert({
+            full_name: form.client_name,
+            cpf: form.client_cpf,
+          })
+          .select()
+          .single();
+        
+        if (clientErr) throw clientErr;
+        clientId = newClient.id;
+      }
+
+      const payload = {
+        contract_number: form.contract_number,
+        client_id: clientId,
+        client_cpf: form.client_cpf,
+        property_id: form.property_id || null,
+        contract_type: form.contract_type,
+        start_date: form.start_date,
+        end_date: form.end_date || null,
+        status: form.status,
+        value: form.value ? Number(form.value) : null,
+        notes: form.notes || "",
+        pdf_url: form.pdf_url || "",
+      };
+
+      let contractId = id;
+
+      if (isNew) {
+        const { data, error } = await supabase.from("contracts").insert(payload).select().single();
+        if (error) throw error;
+        contractId = data.id;
+        toast.success("Contrato criado");
+      } else {
+        const { error } = await supabase.from("contracts").update(payload).eq("id", id);
+        if (error) throw error;
+        toast.success("Contrato atualizado");
+      }
+
+      // Handle pending files
+      if (pendingFiles.length > 0 && contractId) {
+        setUploading(true);
+        for (const file of pendingFiles) {
+          const path = `${contractId}/${Date.now()}-${file.name}`;
+          const { error: uploadErr } = await supabase.storage.from("contract-files").upload(path, file);
+          if (uploadErr) { toast.error(`Erro ao subir ${file.name}: ${uploadErr.message}`); continue; }
+          
+          const { data: urlData } = supabase.storage.from("contract-files").getPublicUrl(path);
+          await supabase.from("contract_files").insert({
+            contract_id: contractId, file_url: urlData.publicUrl, file_name: file.name,
+          });
+        }
+        setPendingFiles([]);
+        setUploading(false);
+      }
+
+      if (isNew) {
+        navigate(`/admin/contracts/${contractId}`);
+      } else {
+        fetchContract(contractId!);
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files?.length || isNew) return;
+    if (!e.target.files?.length) return;
+    const newFiles = Array.from(e.target.files);
+
+    if (isNew) {
+      setPendingFiles((prev) => [...prev, ...newFiles]);
+      toast.info(`${newFiles.length} arquivo(s) selecionado(s). Salve o contrato para concluir o envio.`);
+      return;
+    }
+
     setUploading(true);
-    for (const file of Array.from(e.target.files)) {
+    for (const file of newFiles) {
       const path = `${id}/${Date.now()}-${file.name}`;
       const { error } = await supabase.storage.from("contract-files").upload(path, file);
       if (error) { toast.error(error.message); continue; }
@@ -136,15 +206,45 @@ export default function ContractForm() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Cliente *</Label>
-            <Select value={form.client_id} onValueChange={onClientChange}>
-              <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name} - {c.cpf}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label>Cliente *</Label>
+              <Button 
+                variant="link" 
+                className="h-auto p-0 text-xs" 
+                type="button"
+                onClick={() => {
+                  setIsNewClient(!isNewClient);
+                  setForm({ ...form, client_id: "", client_name: "", client_cpf: "" });
+                }}
+              >
+                {isNewClient ? "Selecionar Existente" : "Novo Cliente"}
+              </Button>
+            </div>
+            {isNewClient ? (
+              <Input 
+                placeholder="Nome completo do cliente" 
+                value={form.client_name} 
+                onChange={(e) => setForm({ ...form, client_name: e.target.value })} 
+              />
+            ) : (
+              <Select value={form.client_id} onValueChange={onClientChange}>
+                <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.full_name} - {c.cpf}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <div className="space-y-2"><Label>CPF do Cliente</Label><Input value={form.client_cpf} readOnly className="bg-muted" /></div>
+          <div className="space-y-2">
+            <Label>CPF do Cliente *</Label>
+            <Input 
+              value={form.client_cpf} 
+              onChange={(e) => setForm({ ...form, client_cpf: e.target.value })} 
+              readOnly={!isNewClient}
+              className={!isNewClient ? "bg-muted" : ""}
+              placeholder="000.000.000-00"
+            />
+          </div>
           <div className="space-y-2">
             <Label>Imóvel</Label>
             <Select value={form.property_id || ""} onValueChange={(v) => setForm({ ...form, property_id: v || null })}>
@@ -174,45 +274,57 @@ export default function ContractForm() {
         </CardContent>
       </Card>
 
-      {!isNew && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Arquivos PDF</CardTitle>
-              <label className="cursor-pointer">
-                <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                <Button variant="outline" size="sm" asChild disabled={uploading}>
-                  <span>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />} Enviar PDF</span>
-                </Button>
-              </label>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {files.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhum arquivo anexado</p>
-            ) : (
-              <div className="space-y-2">
-                {files.map((f) => (
-                  <div key={f.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">{f.file_name}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-                        <a href={f.file_url} target="_blank" rel="noopener noreferrer"><Download className="h-4 w-4" /></a>
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteFile(f.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Arquivos PDF (Contrato)</CardTitle>
+            <label className="cursor-pointer">
+              <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+              <Button variant="outline" size="sm" asChild disabled={uploading}>
+                <span>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />} Selecionar PDF</span>
+              </Button>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {files.length === 0 && pendingFiles.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum arquivo selecionado</p>
+          ) : (
+            <div className="space-y-2">
+              {/* Existing Files */}
+              {files.map((f) => (
+                <div key={f.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">{f.file_name}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
+                      <a href={f.file_url} target="_blank" rel="noopener noreferrer"><Download className="h-4 w-4" /></a>
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteFile(f.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {/* Pending Files */}
+              {pendingFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-dashed border-primary/50 bg-primary/5">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary animate-pulse" />
+                    <span className="text-sm font-medium">{file.name}</span>
+                    <Badge variant="outline" className="text-[10px] py-0 h-4">Pendente</Badge>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setPendingFiles(prev => prev.filter((_, i) => i !== idx))}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex justify-end gap-3 pb-6">
         <Button variant="outline" onClick={() => navigate("/admin/contracts")}>Cancelar</Button>

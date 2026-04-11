@@ -42,25 +42,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }, 0);
       } else {
-        // Mock admin for testing
-        setAdminUser({
-          id: "mock-id",
-          user_id: "mock-user-id",
-          name: "Teste Modo",
-          email: "teste@example.com",
-          role: "admin_master",
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as any);
+        setAdminUser(null);
         setLoading(false);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
-      if (!session?.user) setLoading(false);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setAdminUser(null);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();

@@ -138,11 +138,15 @@ export default function LeadsPage() {
                       <TableCell className="hidden md:table-cell text-muted-foreground">{lead.phone || "-"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={statusColors[lead.status] || ""}>
-                          {lead.status.replace("_", " ")}
+                          {lead.status?.replace("_", " ")}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">{lead.origin || "-"}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">{format(new Date(lead.created_at), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">
+                        {(() => {
+                          try { return format(new Date(lead.created_at), "dd/MM/yyyy"); } catch (e) { return "-"; }
+                        })()}
+                      </TableCell>
                       <TableCell><Edit className="h-4 w-4 text-muted-foreground" /></TableCell>
                     </TableRow>
                   ))}

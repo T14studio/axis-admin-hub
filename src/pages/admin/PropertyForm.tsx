@@ -136,14 +136,14 @@ export default function PropertyForm() {
             <CardContent className="pt-6">
               <div className="space-y-3">
                 <Label className="text-sm font-semibold">Condição*</Label>
-                <RadioGroup value={form.condition} onValueChange={(v) => set("condition", v)} className="flex gap-6">
+                <RadioGroup value={form.condition} onValueChange={(v) => set("condition", v)} className="flex gap-8">
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="novo" id="novo" />
-                    <Label htmlFor="novo" className="font-normal cursor-pointer">Imóvel novo, nunca habitado</Label>
+                    <RadioGroupItem value="novo" id="novo" className="text-primary border-primary" />
+                    <Label htmlFor="novo" className="font-semibold cursor-pointer">Imóvel NOVO</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="usado" id="usado" />
-                    <Label htmlFor="usado" className="font-normal cursor-pointer">Imóvel usado</Label>
+                    <RadioGroupItem value="usado" id="usado" className="text-primary border-primary" />
+                    <Label htmlFor="usado" className="font-semibold cursor-pointer">Imóvel USADO</Label>
                   </div>
                 </RadioGroup>
               </div>

@@ -29,7 +29,7 @@ export default function ContractsPage() {
 
   async function fetchContracts() {
     setLoading(true);
-    const { data } = await supabase.from("contracts").select("*, clients(full_name)").order("created_at", { ascending: false });
+    const { data } = await supabase.from("contracts").select("*").order("created_at", { ascending: false });
     setContracts(data || []);
     setLoading(false);
   }
@@ -97,22 +97,31 @@ export default function ContractsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/contracts/${c.id}`)}>
-                      <TableCell className="font-medium">#{c.contract_number}</TableCell>
-                      <TableCell>{c.clients?.full_name || "-"}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{c.client_cpf}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{c.contract_type}</TableCell>
-                      <TableCell>{formatPrice(c.value)}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={STATUS_COLORS[c.status] || ""}>{c.status}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">
-                        {format(new Date(c.start_date), "dd/MM/yy")} - {c.end_date ? format(new Date(c.end_date), "dd/MM/yy") : "Indeterminado"}
-                      </TableCell>
-                      <TableCell><FileText className="h-4 w-4 text-muted-foreground" /></TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((c) => {
+                    let dateDisplay = "Indeterminado";
+                    try {
+                      const start = format(new Date(c.start_date), "dd/MM/yy");
+                      const end = c.end_date ? format(new Date(c.end_date), "dd/MM/yy") : "Indeterminado";
+                      dateDisplay = `${start} - ${end}`;
+                    } catch (e) {}
+
+                    return (
+                      <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/contracts/${c.id}`)}>
+                        <TableCell className="font-medium">#{c.contract_number}</TableCell>
+                        <TableCell>{c.clients?.full_name || "Cliente " + c.client_cpf}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{c.client_cpf}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{c.contract_type}</TableCell>
+                        <TableCell>{formatPrice(c.value)}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={STATUS_COLORS[c.status] || ""}>{c.status}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">
+                          {dateDisplay}
+                        </TableCell>
+                        <TableCell><FileText className="h-4 w-4 text-muted-foreground" /></TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
