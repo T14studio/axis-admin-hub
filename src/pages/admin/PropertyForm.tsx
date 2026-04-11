@@ -39,7 +39,7 @@ export default function PropertyForm() {
   const [form, setForm] = useState<any>({
     title: "", reference_code: "", purpose: "venda", property_type: "apartamento",
     features: "", price: null, condo_fee: null, iptu: null,
-    neighborhood: "", city: "", state: "", address: "",
+    neighborhood: "", city: "", state: "", address: "", cep: "",
     built_area: null, total_area: null,
     observations: "", proximity: [], condition: "usado",
     highlight: [], expiration_date: "", is_reserved: false,
@@ -85,6 +85,8 @@ export default function PropertyForm() {
         payload[key] = null;
       }
     });
+
+    delete payload.cep;
 
     if (isNew) {
       const { data, error } = await supabase.from("properties").insert(payload).select().single();
@@ -163,6 +165,38 @@ export default function PropertyForm() {
     else {
       setImages(images.map(img => ({ ...img, is_main: img.id === imgId })));
       toast.success("Imagem de capa atualizada");
+    }
+  }
+
+  async function handleCepChange(e: React.ChangeEvent<HTMLInputElement>) {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 8) value = value.slice(0, 8);
+    
+    // Formatar como 00000-000
+    const formatted = value.replace(/^(\d{5})(\d)/, "$1-$2");
+    set("cep", formatted);
+
+    if (value.length === 8) {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${value}/json/`);
+        const data = await response.json();
+        if (!data.erro) {
+          setForm((prev: any) => ({
+            ...prev,
+            cep: formatted,
+            state: data.uf || prev.state,
+            city: data.localidade || prev.city,
+            neighborhood: data.bairro || prev.neighborhood,
+            address: data.logradouro ? `${data.logradouro}, ` : prev.address
+          }));
+          toast.success("Endereço preenchido via CEP!");
+        } else {
+          toast.error("CEP não encontrado.");
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP", err);
+        toast.error("Erro ao buscar CEP.");
+      }
     }
   }
 
@@ -252,7 +286,11 @@ export default function PropertyForm() {
           {/* Localizacao */}
           <Card>
             <CardContent className="pt-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <Input value={form.cep || ""} onChange={handleCepChange} placeholder="00000-000" maxLength={9} />
+                </div>
                 <div className="space-y-2">
                   <Label>Estado*</Label>
                   <Input value={form.state || ""} onChange={(e) => set("state", e.target.value)} placeholder="Estado" />
