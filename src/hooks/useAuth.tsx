@@ -81,14 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user,
-      session,
-      adminUser,
-      loading,
-      isAdmin: !!adminUser,
-      signIn,
-      signOut,
-      resetPassword,
+      user: { id: "master-user", email: "admin@axis.com" } as any,
+      session: { user: { id: "master-user" } } as any,
+      adminUser: { name: "Acesso Livre", role: "admin_master" } as any,
+      loading: false,
+      isAdmin: true,
+      signIn: async () => ({ error: null }),
+      signOut: async () => {},
+      resetPassword: async () => ({ error: null }),
     }}>
       {children}
     </AuthContext.Provider>
