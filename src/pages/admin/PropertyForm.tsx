@@ -89,13 +89,81 @@ export default function PropertyForm() {
     if (isNew) {
       const { data, error } = await supabase.from("properties").insert(payload).select().single();
       if (error) { toast.error(error.message); setSaving(false); return; }
-      toast.success("Imóvel criado com sucesso");
+      toast.success("Imóvel criado com sucesso. Agora você pode adicionar imagens.");
       navigate(`/admin/properties/${data.id}`);
     } else {
       const { error } = await supabase.from("properties").update(payload).eq("id", id);
       if (error) toast.error(error.message); else toast.success("Imóvel atualizado");
     }
     setSaving(false);
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id || id === "new") return;
+
+    setUploading(true);
+    for (const file of Array.from(files)) {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${id}/${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("property-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        toast.error(`Erro ao subir imagem: ${uploadError.message}`);
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("property-images")
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase.from("property_images").insert({
+        property_id: id,
+        image_url: publicUrl,
+        display_order: images.length,
+        is_main: images.length === 0, // Primeira imagem vira capa automaticamente
+      });
+
+      if (dbError) toast.error(dbError.message);
+    }
+    
+    fetchProperty(id);
+    setUploading(false);
+  }
+
+  async function handleRemoveImage(imgId: string, imageUrl: string) {
+    if (!window.confirm("Deseja excluir esta imagem?")) return;
+    
+    // Extrair o path do Storage da URL pública
+    const path = imageUrl.split("/").slice(-2).join("/"); // Formato id/filename.ext
+    
+    await supabase.storage.from("property-images").remove([path]);
+    const { error } = await supabase.from("property_images").delete().eq("id", imgId);
+    
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Imagem removida");
+      setImages(images.filter(img => img.id !== imgId));
+    }
+  }
+
+  async function handleSetMainImage(imgId: string) {
+    if (!id || id === "new") return;
+    
+    // Reset all
+    await supabase.from("property_images").update({ is_main: false }).eq("property_id", id);
+    // Set new main
+    const { error } = await supabase.from("property_images").update({ is_main: true }).eq("id", imgId);
+    
+    if (error) toast.error(error.message);
+    else {
+      setImages(images.map(img => ({ ...img, is_main: img.id === imgId })));
+      toast.success("Imagem de capa atualizada");
+    }
   }
 
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
@@ -233,6 +301,80 @@ export default function PropertyForm() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Imagens */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">Imagens do Imóvel</CardTitle>
+                <p className="text-[11px] text-muted-foreground">A primeira imagem será a capa por padrão.</p>
+              </div>
+              <div>
+                <Input
+                  type="file"
+                  id="image-upload"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  disabled={isNew || uploading}
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => document.getElementById("image-upload")?.click()}
+                  disabled={isNew || uploading}
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {isNew ? "Salve para subir fotos" : "Adicionar Fotos"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {images.length === 0 ? (
+                <div className="border-2 border-dashed rounded-lg py-12 flex flex-col items-center justify-center text-muted-foreground">
+                  <Upload className="h-8 w-8 mb-2 opacity-20" />
+                  <p className="text-sm">{isNew ? "Salve o imóvel primeiro" : "Nenhuma imagem adicionada"}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {images.map((img) => (
+                    <div key={img.id} className="group relative aspect-square rounded-md overflow-hidden bg-muted">
+                      <img src={img.image_url} alt="Property" className="h-full w-full object-cover" />
+                      
+                      {/* Overlay Controls */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Button
+                          size="icon"
+                          variant={img.is_main ? "default" : "secondary"}
+                          className="h-8 w-8 rounded-full"
+                          title="Definir como capa"
+                          onClick={() => handleSetMainImage(img.id)}
+                        >
+                          <Star className={`h-4 w-4 ${img.is_main ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="h-8 w-8 rounded-full"
+                          title="Remover imagem"
+                          onClick={() => handleRemoveImage(img.id, img.image_url)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      {img.is_main && (
+                        <div className="absolute top-2 left-2">
+                          <Badge className="bg-yellow-500 hover:bg-yellow-600">CAPA</Badge>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
