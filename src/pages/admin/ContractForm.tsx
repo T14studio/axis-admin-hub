@@ -20,7 +20,7 @@ export default function ContractForm() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<DBTables<"clients">[]>([]);
-  const [properties, setProperties] = useState<DBTables<"properties">[]>([]);
+  const [properties, setProperties] = useState<{ id: string; title: string; reference_code: string | null }[]>([]);
   const [files, setFiles] = useState<ContractFile[]>([]);
   const [uploading, setUploading] = useState(false);
 

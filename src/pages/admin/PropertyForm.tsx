@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Save, Upload, X, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert, Tables as DBTables } from "@/integrations/supabase/types";
