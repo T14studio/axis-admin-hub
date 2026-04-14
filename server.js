@@ -6,16 +6,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 8080;
+// Hostinger usually provides the port in process.env.PORT
+const port = process.env.PORT || 3000;
 
 // Serve static files from the 'dist' directory
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
 
 // Catch-all route to serve 'index.html' for all other requests (SPA support)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  const indexPath = path.join(distPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('Error sending index.html:', err);
+      res.status(500).send('Internal Server Error: Missing build files');
+    }
+  });
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
+const server = app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
+
+// Handle errors
+server.on('error', (err) => {
+  console.error('Server failed to start:', err);
+});
+
