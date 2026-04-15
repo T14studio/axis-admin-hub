@@ -1,8 +1,42 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Database, Shield, Globe } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Building2, Database, Shield, Globe, Lock, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    
+    if (error) {
+      toast.error("Erro ao atualizar senha", { description: error.message });
+    } else {
+      toast.success("Senha atualizada com sucesso");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
@@ -16,6 +50,40 @@ export default function SettingsPage() {
             <div><p className="text-sm text-muted-foreground">Telefone</p><p className="text-sm font-medium text-foreground">—</p></div>
             <div><p className="text-sm text-muted-foreground">E-mail</p><p className="text-sm font-medium text-foreground">—</p></div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Lock className="h-4 w-4" /> Segurança (Alterar Senha)</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-md">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nova Senha</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Digitar nova senha"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirmar Nova Senha</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Repetir nova senha"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Atualizar Senha
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
