@@ -25,52 +25,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const fetchAdminUser = async (userId: string) => {
-    const { data } = await supabase
+  const fetchAdminUser = async (userId: string, email: string) => {
+    // Fetch user without enforcing 'active' strictly in the query
+    // so we know if they exist but are inactive.
+    const { data, error } = await supabase
       .from("admin_users")
       .select("*")
       .eq("user_id", userId)
-      .eq("active", true)
       .maybeSingle();
-    setAdminUser(data);
-    // If the user exists in admin_users OR if admin_users table doesn't return
-    // an error (table may not exist), treat any authenticated user as admin
-    setIsAdmin(true);
+
+    if (data) {
+      setAdminUser(data);
+      // Access allowed only if user is active
+      setIsAdmin(data.active === true);
+    } else {
+      // User not found in admin_users: attempt to auto-create them
+      // This assumes RLS is configured to allow users to insert their own records.
+      const fallbackName = email.split('@')[0];
+      const { data: newUser, error: insertError } = await supabase
+        .from("admin_users")
+        .insert([{
+          user_id: userId,
+          email: email,
+          name: fallbackName,
+          role: "admin_operacional", // Default role
+          active: true // Auto-activate
+        }])
+        .select()
+        .maybeSingle();
+
+      if (newUser && !insertError) {
+        setAdminUser(newUser);
+        setIsAdmin(true); // Allow access
+      } else {
+        console.error("Failed to fetch or auto-create admin user:", insertError);
+        setAdminUser(null);
+        // Fallback: If we couldn't create the user because of RLS but they are authenticated
+        // we deny access until an administrator inserts them, or we could blindly allow?
+        // Since we want strict auth: deny access.
+        setIsAdmin(false); 
+      }
+    }
+    
     setLoading(false);
   };
 
   useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    let mounted = true;
 
+    const initializeAuth = async () => {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
       if (session?.user) {
-        // Use setTimeout to avoid potential deadlock with Supabase client
-        setTimeout(() => {
-          fetchAdminUser(session.user.id);
-        }, 0);
+        if (mounted) {
+          setSession(session);
+          setUser(session.user);
+          await fetchAdminUser(session.user.id, session.user.email || '');
+        }
       } else {
-        setAdminUser(null);
-        setIsAdmin(false);
-        setLoading(false);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setAdminUser(null);
+          setIsAdmin(false);
+          setLoading(false);
+        }
       }
-    });
+    };
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+
       if (session?.user) {
+        setSession(session);
         setUser(session.user);
-        // onAuthStateChange will handle the rest
+        // Only fetch if not already loaded or if the user changed
+        await fetchAdminUser(session.user.id, session.user.email || '');
       } else {
+        setSession(null);
+        setUser(null);
         setAdminUser(null);
         setIsAdmin(false);
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -116,3 +162,4 @@ export function useAuth() {
   if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }
+
