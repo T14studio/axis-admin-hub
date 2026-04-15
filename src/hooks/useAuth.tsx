@@ -14,6 +14,14 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+async function fetchAdminUser(userId: string) {
+  const { data } = await supabase
+    .from("admin_users")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data;
+}
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -22,11 +30,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     let mounted = true;
+    async function init() {
+      try {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (s?.user) {
+          setSession(s);
+          setUser(s.user);
+          const adminData = await fetchAdminUser(s.user.id);
+          if (!mounted) return;
+          if (adminData) {
+            setAdminUser(adminData);
+            setIsAdmin(adminData.active === true);
+          } else {
+            setAdminUser(null);
+            setIsAdmin(false);
+          }
+        } else {
+          setSession(null);
+          setUser(null);
+          setAdminUser(null);
+          setIsAdmin(false);
+        }
+      } catch (e) {
+        console.error('[useAuth] init error:', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    init();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[useAuth] Auth event:', event, currentSession?.user?.email);
+        console.log('[useAuth] event:', event);
         if (!mounted) return;
-        if (!currentSession || !currentSession.user) {
+        if (event === 'SIGNED_OUT' || !currentSession?.user) {
           setSession(null);
           setUser(null);
           setAdminUser(null);
@@ -34,31 +71,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
-        setSession(currentSession);
-        setUser(currentSession.user);
-        try {
-          const { data, error } = await supabase
-            .from("admin_users")
-            .select("*")
-            .eq("user_id", currentSession.user.id)
-            .maybeSingle();
-          console.log('[useAuth] admin_users query:', data, error);
-          if (!mounted) return;
-          if (data) {
-            setAdminUser(data);
-            setIsAdmin(data.active === true);
-          } else {
-            setAdminUser(null);
-            setIsAdmin(false);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          setSession(currentSession);
+          setUser(currentSession.user);
+          try {
+            const adminData = await fetchAdminUser(currentSession.user.id);
+            if (!mounted) return;
+            if (adminData) {
+              setAdminUser(adminData);
+              setIsAdmin(adminData.active === true);
+            } else {
+              setAdminUser(null);
+              setIsAdmin(false);
+            }
+          } catch (e) {
+            console.error('[useAuth] onAuthStateChange error:', e);
+          } finally {
+            if (mounted) setLoading(false);
           }
-        } catch (err) {
-          console.error('[useAuth] Error fetching admin_users:', err);
-          if (mounted) {
-            setAdminUser(null);
-            setIsAdmin(false);
-          }
-        } finally {
-          if (mounted) setLoading(false);
         }
       }
     );
