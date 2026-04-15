@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, createContext, useContext, ReactNode, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
@@ -24,86 +24,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const initialized = useRef(false);
 
   const fetchAdminUser = async (userId: string, email: string) => {
-    // Fetch user without enforcing 'active' strictly in the query
-    // so we know if they exist but are inactive.
-    const { data, error } = await supabase
-      .from("admin_users")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (data) {
-      setAdminUser(data);
-      // Access allowed only if user is active
-      setIsAdmin(data.active === true);
-    } else {
-      // User not found in admin_users: attempt to auto-create them
-      // This assumes RLS is configured to allow users to insert their own records.
-      const fallbackName = email.split('@')[0];
-      const { data: newUser, error: insertError } = await supabase
+    try {
+      const { data, error } = await supabase
         .from("admin_users")
-        .insert([{
-          user_id: userId,
-          email: email,
-          name: fallbackName,
-          role: "admin_operacional", // Default role
-          active: true // Auto-activate
-        }])
-        .select()
+        .select("*")
+        .eq("user_id", userId)
         .maybeSingle();
 
-      if (newUser && !insertError) {
-        setAdminUser(newUser);
-        setIsAdmin(true); // Allow access
+      if (data) {
+        setAdminUser(data);
+        setIsAdmin(data.active === true);
       } else {
-        console.error("Failed to fetch or auto-create admin user:", insertError);
-        setAdminUser(null);
-        // Fallback: If we couldn't create the user because of RLS but they are authenticated
-        // we deny access until an administrator inserts them, or we could blindly allow?
-        // Since we want strict auth: deny access.
-        setIsAdmin(false); 
+        const fallbackName = email.split('@')[0];
+        const { data: newUser, error: insertError } = await supabase
+          .from("admin_users")
+          .insert([{
+            user_id: userId,
+            email: email,
+            name: fallbackName,
+            role: "admin_operacional",
+            active: true
+          }])
+          .select()
+          .maybeSingle();
+
+        if (newUser && !insertError) {
+          setAdminUser(newUser);
+          setIsAdmin(true);
+        } else {
+          console.error("Auth: No profile found and auto-create failed:", insertError);
+          setAdminUser(null);
+          setIsAdmin(false);
+        }
       }
+    } catch (e) {
+      console.error("Auth: Fatal error in fetchAdminUser:", e);
+      setIsAdmin(false);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
-      setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        if (mounted) {
-          setSession(session);
-          setUser(session.user);
-          await fetchAdminUser(session.user.id, session.user.email || '');
-        }
-      } else {
-        if (mounted) {
+    const syncSession = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (currentSession?.user) {
+          setSession(currentSession);
+          setUser(currentSession.user);
+          await fetchAdminUser(currentSession.user.id, currentSession.user.email || '');
+        } else {
           setSession(null);
           setUser(null);
           setAdminUser(null);
           setIsAdmin(false);
           setLoading(false);
         }
+      } catch (err) {
+        console.error("Auth: Error syncing session:", err);
+        if (mounted) setLoading(false);
       }
     };
 
-    initializeAuth();
+    syncSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!mounted) return;
+      console.log("Auth: State change event:", event);
 
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        // Only fetch if not already loaded or if the user changed
-        await fetchAdminUser(session.user.id, session.user.email || '');
+      if (currentSession?.user) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+        await fetchAdminUser(currentSession.user.id, currentSession.user.email || '');
       } else {
         setSession(null);
         setUser(null);
@@ -120,17 +119,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-    return { error: null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      return { error: null };
+    } catch (e: any) {
+      return { error: e.message || "Erro inesperado" };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setAdminUser(null);
-    setIsAdmin(false);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setUser(null);
+      setSession(null);
+      setAdminUser(null);
+      setIsAdmin(false);
+    }
   };
 
   const resetPassword = async (email: string) => {
