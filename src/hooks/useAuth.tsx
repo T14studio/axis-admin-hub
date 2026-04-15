@@ -27,6 +27,8 @@ function clearSupabaseStorage() {
 }
 
 async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
+  // Small delay to ensure JWT is propagated before querying
+  await new Promise(r => setTimeout(r, 300));
   const { data, error } = await supabase
     .from("admin_users")
     .select("*")
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAdminUser(adminData);
           setIsAdmin(true);
         } else {
+          console.warn('[useAuth] adminData not found or not active:', adminData);
           setAdminUser(adminData);
           setIsAdmin(false);
         }
