@@ -29,16 +29,20 @@ export default function ContractsPage() {
 
   async function fetchContracts() {
     setLoading(true);
-    const { data } = await supabase.from("contracts").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("contracts")
+      .select("*, clients(full_name)")
+      .order("created_at", { ascending: false });
     setContracts(data || []);
     setLoading(false);
   }
 
   const filtered = contracts.filter((c) => {
+    const clientName = (c.clients?.full_name || "").toLowerCase();
     const match = !search ||
       c.contract_number.toLowerCase().includes(search.toLowerCase()) ||
-      c.client_cpf.includes(search) ||
-      (c.clients?.full_name || "").toLowerCase().includes(search.toLowerCase());
+      (c.client_cpf || "").includes(search) ||
+      clientName.includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || c.status === statusFilter;
     return match && matchStatus;
   });
@@ -51,7 +55,6 @@ export default function ContractsPage() {
         <h1 className="text-2xl font-bold text-foreground">Contratos</h1>
         <Button onClick={() => navigate("/admin/contracts/new")}><Plus className="h-4 w-4 mr-1" /> Novo Contrato</Button>
       </div>
-
       {/* CPF Search Prominent */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-4">
@@ -74,7 +77,6 @@ export default function ContractsPage() {
           </div>
         </CardContent>
       </Card>
-
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -104,11 +106,11 @@ export default function ContractsPage() {
                       const end = c.end_date ? format(new Date(c.end_date), "dd/MM/yy") : "Indeterminado";
                       dateDisplay = `${start} - ${end}`;
                     } catch (e) {}
-
+                    const clientName = c.clients?.full_name || (c.client_cpf ? `CPF: ${c.client_cpf}` : "Sem cliente");
                     return (
                       <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/contracts/${c.id}`)}>
                         <TableCell className="font-medium">#{c.contract_number}</TableCell>
-                        <TableCell>{c.clients?.full_name || "Cliente " + c.client_cpf}</TableCell>
+                        <TableCell>{clientName}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">{c.client_cpf}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">{c.contract_type}</TableCell>
                         <TableCell>{formatPrice(c.value)}</TableCell>
