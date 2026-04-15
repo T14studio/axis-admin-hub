@@ -1,7 +1,9 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types";
 
 type AdminUser = Tables<"admin_users">;
 
@@ -26,10 +28,14 @@ function clearSupabaseStorage() {
   } catch (_) {}
 }
 
-async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
-  // Small delay to ensure JWT is propagated before querying
-  await new Promise(r => setTimeout(r, 300));
-  const { data, error } = await supabase
+async function fetchAdminUser(userId: string, accessToken: string): Promise<AdminUser | null> {
+  // Use a client with the user's access token to ensure authenticated access
+  const authClient = createClient<Database>(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  );
+  const { data, error } = await authClient
     .from("admin_users")
     .select("*")
     .eq("user_id", userId)
@@ -38,6 +44,7 @@ async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
     console.error("[useAuth] fetchAdminUser error:", error);
     return null;
   }
+  console.log('[useAuth] fetchAdminUser result:', data);
   return data;
 }
 
@@ -84,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(currentSession);
         setUser(currentSession.user);
 
-        const adminData = await fetchAdminUser(currentSession.user.id);
+        const adminData = await fetchAdminUser(currentSession.user.id, currentSession.access_token);
         console.log('[useAuth] adminData:', adminData);
         if (!mounted) return;
 
