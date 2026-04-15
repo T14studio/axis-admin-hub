@@ -8,6 +8,26 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Verificar e limpar sessões expiradas ANTES de criar o cliente
+// para evitar travamento no refresh de token
+try {
+  const sbKeys = Object.keys(localStorage).filter(
+    (k) => k.startsWith('sb-') && k.endsWith('-auth-token')
+  );
+  for (const key of sbKeys) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const expiresAt = parsed?.expires_at;
+      if (expiresAt && Date.now() / 1000 > expiresAt + 60) {
+        // Token expirado há mais de 60 segundos - remover para evitar travamento
+        console.warn('[client] Removing expired Supabase session from localStorage');
+        localStorage.removeItem(key);
+      }
+    }
+  }
+} catch (_) {}
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
