@@ -26,7 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const checkAuth = async (currentSession: Session | null, mounted: boolean) => {
+    console.log('[useAuth] Iniciando checkAuth. Sessão:', currentSession?.user?.email || 'Nenhuma');
+    
     if (!currentSession) {
+      console.log('[useAuth] Sem sessão, finalizando loading.');
       if (mounted) {
         setSession(null);
         setUser(null);
@@ -43,20 +46,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession.user);
       }
 
-      // 1. Tenta buscar o usuário na tabela admin_users
+      console.log('[useAuth] Buscando perfil admin_users para:', currentSession.user.id);
       const { data, error: fetchError } = await supabase
         .from("admin_users")
         .select("*")
         .eq("user_id", currentSession.user.id)
         .maybeSingle();
 
+      console.log('[useAuth] Resultado admin_users:', data, 'Erro:', fetchError);
+
       if (data) {
         if (mounted) {
           setAdminUser(data);
           setIsAdmin(data.active === true);
+          console.log('[useAuth] adminUser definido:', data.email, 'Ativo:', data.active);
         }
       } else {
-        // 2. Se não existir, tenta criar automaticamente
+        console.log('[useAuth] Perfil não encontrado, tentando auto-create...');
         const fallbackName = currentSession.user.email?.split('@')[0] || 'Usuário';
         const { data: newUser, error: insertError } = await supabase
           .from("admin_users")
@@ -70,6 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select()
           .maybeSingle();
 
+        console.log('[useAuth] Resultado auto-create:', newUser, 'Erro:', insertError);
+
         if (mounted) {
           if (newUser && !insertError) {
             setAdminUser(newUser);
@@ -81,8 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      console.error("Auth: Erro crítico na verificação:", err);
+      console.error("[useAuth] Erro crítico na verificação:", err);
     } finally {
+      console.log('[useAuth] Finalizando checkAuth (setLoading false)');
       if (mounted) setLoading(false);
     }
   };
