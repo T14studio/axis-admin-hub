@@ -48,10 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    // Track if onAuthStateChange already resolved loading
     let resolved = false;
 
-    // Safety net: if nothing resolves in 6s, force stop loading
     const safetyTimer = setTimeout(() => {
       if (mounted && !resolved) {
         console.warn('[useAuth] Safety timeout hit - clearing storage and stopping loading');
@@ -86,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const adminData = await fetchAdminUser(currentSession.user.id);
         console.log('[useAuth] adminData:', adminData);
-
         if (!mounted) return;
+
         resolved = true;
         clearTimeout(safetyTimer);
 
@@ -120,7 +118,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
+    clearSupabaseStorage();
+    window.location.href = '/login';
   };
 
   const resetPassword = async (email: string) => {
