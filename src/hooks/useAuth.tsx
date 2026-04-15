@@ -18,6 +18,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function clearSupabaseStorage() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('sb-') || k.includes('supabase'))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
+}
+
 async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
   const { data, error } = await supabase
     .from("admin_users")
@@ -40,14 +48,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    // Track if onAuthStateChange already resolved loading
+    let resolved = false;
+
+    // Safety net: if nothing resolves in 6s, force stop loading
+    const safetyTimer = setTimeout(() => {
+      if (mounted && !resolved) {
+        console.warn('[useAuth] Safety timeout hit - clearing storage and stopping loading');
+        clearSupabaseStorage();
+        resolved = true;
+        setSession(null);
+        setUser(null);
+        setAdminUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+      }
+    }, 6000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log("[useAuth] event:", event, "session:", currentSession?.user?.email);
-
+        console.log('[useAuth] event:', event, 'user:', currentSession?.user?.email ?? 'none');
         if (!mounted) return;
 
         if (!currentSession || !currentSession.user) {
+          resolved = true;
+          clearTimeout(safetyTimer);
           setSession(null);
           setUser(null);
           setAdminUser(null);
@@ -56,15 +81,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Tem sessão válida
         setSession(currentSession);
         setUser(currentSession.user);
 
-        // Buscar dados do admin
         const adminData = await fetchAdminUser(currentSession.user.id);
-        console.log("[useAuth] adminData:", adminData);
+        console.log('[useAuth] adminData:', adminData);
 
         if (!mounted) return;
+        resolved = true;
+        clearTimeout(safetyTimer);
 
         if (adminData && adminData.active === true) {
           setAdminUser(adminData);
@@ -79,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
