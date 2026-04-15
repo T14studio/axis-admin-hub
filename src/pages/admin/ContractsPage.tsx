@@ -31,18 +31,19 @@ export default function ContractsPage() {
     setLoading(true);
     const { data } = await supabase
       .from("contracts")
-      .select("*, clients(full_name)")
+      .select("*")
       .order("created_at", { ascending: false });
     setContracts(data || []);
     setLoading(false);
   }
 
   const filtered = contracts.filter((c) => {
-    const clientName = (c.clients?.full_name || "").toLowerCase();
+    const name = (c.client_name || c.nome_cliente || "").toLowerCase();
+    const cpf = c.client_cpf || c.cpf || c.cpf_cnpj || "";
     const match = !search ||
-      c.contract_number.toLowerCase().includes(search.toLowerCase()) ||
-      (c.client_cpf || "").includes(search) ||
-      clientName.includes(search.toLowerCase());
+      (c.contract_number || "").toLowerCase().includes(search.toLowerCase()) ||
+      cpf.includes(search) ||
+      name.includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || c.status === statusFilter;
     return match && matchStatus;
   });
@@ -55,7 +56,6 @@ export default function ContractsPage() {
         <h1 className="text-2xl font-bold text-foreground">Contratos</h1>
         <Button onClick={() => navigate("/admin/contracts/new")}><Plus className="h-4 w-4 mr-1" /> Novo Contrato</Button>
       </div>
-      {/* CPF Search Prominent */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-4">
           <div className="flex flex-col sm:flex-row gap-3 items-center">
@@ -90,32 +90,38 @@ export default function ContractsPage() {
                   <TableRow>
                     <TableHead>Nº Contrato</TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead className="hidden md:table-cell">CPF</TableHead>
+                    <TableHead className="hidden md:table-cell">CPF/CNPJ</TableHead>
                     <TableHead className="hidden md:table-cell">Tipo</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden lg:table-cell">Vigência</TableHead>
+                    <TableHead className="hidden lg:table-cell">Data</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => {
-                    let dateDisplay = "Indeterminado";
+                    let dateDisplay = "—";
                     try {
-                      const start = format(new Date(c.start_date), "dd/MM/yy");
-                      const end = c.end_date ? format(new Date(c.end_date), "dd/MM/yy") : "Indeterminado";
-                      dateDisplay = `${start} - ${end}`;
+                      if (c.start_date) {
+                        const start = format(new Date(c.start_date), "dd/MM/yy");
+                        const end = c.end_date ? format(new Date(c.end_date), "dd/MM/yy") : "Indet.";
+                        dateDisplay = `${start} - ${end}`;
+                      } else if (c.created_at) {
+                        dateDisplay = format(new Date(c.created_at), "dd/MM/yy");
+                      }
                     } catch (e) {}
-                    const clientName = c.clients?.full_name || (c.client_cpf ? `CPF: ${c.client_cpf}` : "Sem cliente");
+                    const clientName = c.client_name || c.nome_cliente || "Sem nome";
+                    const clientCpf = c.client_cpf || c.cpf || c.cpf_cnpj || "";
+                    const contractType = c.contract_type || c.tipo_contrato || "";
                     return (
                       <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/contracts/${c.id}`)}>
                         <TableCell className="font-medium">#{c.contract_number}</TableCell>
                         <TableCell>{clientName}</TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground">{c.client_cpf}</TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground">{c.contract_type}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{clientCpf}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{contractType}</TableCell>
                         <TableCell>{formatPrice(c.value)}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={STATUS_COLORS[c.status] || ""}>{c.status}</Badge>
+                          <Badge variant="secondary" className={STATUS_COLORS[c.status] || ""}>{c.status || "—"}</Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">
                           {dateDisplay}
