@@ -18,6 +18,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function clearSupabaseStorage() {
+  try {
+    const keys = Object.keys(localStorage).filter(
+      (k) => k.startsWith('sb-') || k.includes('supabase')
+    );
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
+}
+
+async function getSessionWithTimeout(timeoutMs: number) {
+  return Promise.race([
+    supabase.auth.getSession(),
+    new Promise<{ data: { session: null }; error: Error }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null }, error: new Error('timeout') }), timeoutMs)
+    ),
+  ]);
+}
+
 async function fetchAdminUser(userId: string) {
   const { data } = await supabase
     .from("admin_users")
@@ -39,7 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initialize = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        const result = await getSessionWithTimeout(5000);
+        const currentSession = result.data.session;
+        const timedOut = result.error?.message === 'timeout';
+
+        if (timedOut) {
+          console.warn('[useAuth] getSession timed out, clearing storage');
+          clearSupabaseStorage();
+        }
+
         if (!mounted) return;
 
         if (currentSession?.user) {
@@ -69,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAdmin(false);
         }
       } catch (e) {
-        console.error('[useAuth] getSession error:', e);
+        console.error('[useAuth] initialize error:', e);
         if (mounted) {
           setSession(null);
           setUser(null);
