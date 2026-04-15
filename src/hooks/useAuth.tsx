@@ -2,7 +2,9 @@ import { useState, useEffect, createContext, useContext, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
+
 type AdminUser = Tables<"admin_users">;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -13,7 +15,9 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 async function fetchAdminUser(userId: string) {
   const { data } = await supabase
     .from("admin_users")
@@ -22,29 +26,41 @@ async function fetchAdminUser(userId: string) {
     .maybeSingle();
   return data;
 }
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+
   useEffect(() => {
     let mounted = true;
-    async function init() {
+
+    const initialize = async () => {
       try {
-        const { data: { session: s } } = await supabase.auth.getSession();
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!mounted) return;
-        if (s?.user) {
-          setSession(s);
-          setUser(s.user);
-          const adminData = await fetchAdminUser(s.user.id);
-          if (!mounted) return;
-          if (adminData) {
-            setAdminUser(adminData);
-            setIsAdmin(adminData.active === true);
-          } else {
-            setAdminUser(null);
-            setIsAdmin(false);
+
+        if (currentSession?.user) {
+          setSession(currentSession);
+          setUser(currentSession.user);
+          try {
+            const adminData = await fetchAdminUser(currentSession.user.id);
+            if (!mounted) return;
+            if (adminData) {
+              setAdminUser(adminData);
+              setIsAdmin(adminData.active === true);
+            } else {
+              setAdminUser(null);
+              setIsAdmin(false);
+            }
+          } catch (e) {
+            console.error('[useAuth] fetchAdminUser error:', e);
+            if (mounted) {
+              setAdminUser(null);
+              setIsAdmin(false);
+            }
           }
         } else {
           setSession(null);
@@ -53,17 +69,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAdmin(false);
         }
       } catch (e) {
-        console.error('[useAuth] init error:', e);
+        console.error('[useAuth] getSession error:', e);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setAdminUser(null);
+          setIsAdmin(false);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
-    }
-    init();
+    };
+
+    initialize();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[useAuth] event:', event);
         if (!mounted) return;
-        if (event === 'SIGNED_OUT' || !currentSession?.user) {
+        if (event === 'SIGNED_OUT' || !currentSession) {
           setSession(null);
           setUser(null);
           setAdminUser(null);
@@ -71,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(currentSession);
           setUser(currentSession.user);
           try {
@@ -92,19 +115,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     );
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
   }, []);
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
     return { error: null };
   };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
+
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
@@ -112,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) return { error: error.message };
     return { error: null };
   };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -127,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");
