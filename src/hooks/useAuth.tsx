@@ -1,9 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { createClient } from "@supabase/supabase-js";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
-import type { Database } from "@/integrations/supabase/types";
 
 type AdminUser = Tables<"admin_users">;
 
@@ -28,24 +26,23 @@ function clearSupabaseStorage() {
   } catch (_) {}
 }
 
-async function fetchAdminUser(userId: string, accessToken: string): Promise<AdminUser | null> {
-  // Use a client with the user's access token to ensure authenticated access
-  const authClient = createClient<Database>(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
-  );
-  const { data, error } = await authClient
-    .from("admin_users")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    console.error("[useAuth] fetchAdminUser error:", error);
+async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
+  try {
+    const { data, error } = await supabase
+      .from("admin_users")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) {
+      console.error("[useAuth] fetchAdminUser error:", error);
+      return null;
+    }
+    console.log('[useAuth] fetchAdminUser result:', data);
+    return data;
+  } catch (err) {
+    console.error("[useAuth] fetchAdminUser exception:", err);
     return null;
   }
-  console.log('[useAuth] fetchAdminUser result:', data);
-  return data;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,29 +54,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let resolved = false;
 
     const safetyTimer = setTimeout(() => {
-      if (mounted && !resolved) {
-        console.warn('[useAuth] Safety timeout hit - clearing storage and stopping loading');
-        clearSupabaseStorage();
-        resolved = true;
+      if (mounted) {
+        console.warn('[useAuth] Safety timeout - stopping loading');
+        setLoading(false);
+      }
+    }, 8000);
+
+    // Initialize with current session
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      if (!mounted) return;
+      if (!currentSession || !currentSession.user) {
+        clearTimeout(safetyTimer);
         setSession(null);
         setUser(null);
         setAdminUser(null);
         setIsAdmin(false);
         setLoading(false);
+        return;
       }
-    }, 6000);
+      setSession(currentSession);
+      setUser(currentSession.user);
+      const adminData = await fetchAdminUser(currentSession.user.id);
+      if (!mounted) return;
+      clearTimeout(safetyTimer);
+      if (adminData && adminData.active === true) {
+        setAdminUser(adminData);
+        setIsAdmin(true);
+      } else {
+        console.warn('[useAuth] not admin or not active:', adminData);
+        setAdminUser(null);
+        setIsAdmin(false);
+      }
+      setLoading(false);
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log('[useAuth] event:', event, 'user:', currentSession?.user?.email ?? 'none');
         if (!mounted) return;
-
         if (!currentSession || !currentSession.user) {
-          resolved = true;
-          clearTimeout(safetyTimer);
           setSession(null);
           setUser(null);
           setAdminUser(null);
@@ -87,26 +102,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
-
         setSession(currentSession);
         setUser(currentSession.user);
-
-        const adminData = await fetchAdminUser(currentSession.user.id, currentSession.access_token);
-        console.log('[useAuth] adminData:', adminData);
-        if (!mounted) return;
-
-        resolved = true;
-        clearTimeout(safetyTimer);
-
-        if (adminData && adminData.active === true) {
-          setAdminUser(adminData);
-          setIsAdmin(true);
-        } else {
-          console.warn('[useAuth] adminData not found or not active:', adminData);
-          setAdminUser(adminData);
-          setIsAdmin(false);
-        }
-        setLoading(false);
+        // Use setTimeout to avoid Supabase deadlock on auth state change
+        setTimeout(async () => {
+          if (!mounted) return;
+          const adminData = await fetchAdminUser(currentSession.user.id);
+          if (!mounted) return;
+          if (adminData && adminData.active === true) {
+            setAdminUser(adminData);
+            setIsAdmin(true);
+          } else {
+            console.warn('[useAuth] not admin or not active:', adminData);
+            setAdminUser(null);
+            setIsAdmin(false);
+          }
+          setLoading(false);
+        }, 100);
       }
     );
 
@@ -118,8 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      setLoading(false);
       return { error: error.message };
     }
     return { error: null };
