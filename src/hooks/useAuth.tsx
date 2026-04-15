@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode, useRef } from "react";
+import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
@@ -24,26 +24,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const initialized = useRef(false);
 
-  const fetchAdminUser = async (userId: string, email: string) => {
+  const checkAuth = async (currentSession: Session | null, mounted: boolean) => {
+    if (!currentSession) {
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+        setAdminUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      if (mounted) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+      }
+
+      // 1. Tenta buscar o usuário na tabela admin_users
+      const { data, error: fetchError } = await supabase
         .from("admin_users")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", currentSession.user.id)
         .maybeSingle();
 
       if (data) {
-        setAdminUser(data);
-        setIsAdmin(data.active === true);
+        if (mounted) {
+          setAdminUser(data);
+          setIsAdmin(data.active === true);
+        }
       } else {
-        const fallbackName = email.split('@')[0];
+        // 2. Se não existir, tenta criar automaticamente
+        const fallbackName = currentSession.user.email?.split('@')[0] || 'Usuário';
         const { data: newUser, error: insertError } = await supabase
           .from("admin_users")
           .insert([{
-            user_id: userId,
-            email: email,
+            user_id: currentSession.user.id,
+            email: currentSession.user.email!,
             name: fallbackName,
             role: "admin_operacional",
             active: true
@@ -51,92 +70,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select()
           .maybeSingle();
 
-        if (newUser && !insertError) {
-          setAdminUser(newUser);
-          setIsAdmin(true);
-        } else {
-          console.error("Auth: No profile found and auto-create failed:", insertError);
-          setAdminUser(null);
-          setIsAdmin(false);
+        if (mounted) {
+          if (newUser && !insertError) {
+            setAdminUser(newUser);
+            setIsAdmin(true);
+          } else {
+            setAdminUser(null);
+            setIsAdmin(false);
+          }
         }
       }
-    } catch (e) {
-      console.error("Auth: Fatal error in fetchAdminUser:", e);
-      setIsAdmin(false);
+    } catch (err) {
+      console.error("Auth: Erro crítico na verificação:", err);
     } finally {
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
+    
+    // Timeout de segurança: 5 segundos
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn("Auth: Safety timeout triggered. Forcing loading to false.");
+        setLoading(false);
+      }
+    }, 5000);
 
-    const syncSession = async () => {
+    const initialize = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (!mounted) return;
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        await checkAuth(initialSession, mounted);
+      } catch (err) {
+        if (mounted) setLoading(false);
+      }
+    };
 
-        if (currentSession?.user) {
-          setSession(currentSession);
-          setUser(currentSession.user);
-          await fetchAdminUser(currentSession.user.id, currentSession.user.email || '');
-        } else {
+    initialize();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      console.log("Auth: State change event:", event);
+      if (event === 'SIGNED_OUT') {
+        if (mounted) {
           setSession(null);
           setUser(null);
           setAdminUser(null);
           setIsAdmin(false);
           setLoading(false);
         }
-      } catch (err) {
-        console.error("Auth: Error syncing session:", err);
-        if (mounted) setLoading(false);
-      }
-    };
-
-    syncSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!mounted) return;
-      console.log("Auth: State change event:", event);
-
-      if (currentSession?.user) {
-        setSession(currentSession);
-        setUser(currentSession.user);
-        await fetchAdminUser(currentSession.user.id, currentSession.user.email || '');
-      } else {
-        setSession(null);
-        setUser(null);
-        setAdminUser(null);
-        setIsAdmin(false);
-        setLoading(false);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        await checkAuth(currentSession, mounted);
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { error: error.message };
-      return { error: null };
-    } catch (e: any) {
-      return { error: e.message || "Erro inesperado" };
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
   };
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      setUser(null);
-      setSession(null);
-      setAdminUser(null);
-      setIsAdmin(false);
-    }
+    await supabase.auth.signOut();
   };
 
   const resetPassword = async (email: string) => {
