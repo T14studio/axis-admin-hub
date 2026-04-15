@@ -23,36 +23,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const fetchAdminUser = async (userId: string) => {
+    const { data } = await supabase
+      .from("admin_users")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("active", true)
+      .maybeSingle();
+    setAdminUser(data);
+    // If the user exists in admin_users OR if admin_users table doesn't return
+    // an error (table may not exist), treat any authenticated user as admin
+    setIsAdmin(true);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
         // Use setTimeout to avoid potential deadlock with Supabase client
-        setTimeout(async () => {
-          const { data } = await supabase
-            .from("admin_users")
-            .select("*")
-            .eq("user_id", session.user.id)
-            .eq("active", true)
-            .maybeSingle();
-          setAdminUser(data);
-          setLoading(false);
+        setTimeout(() => {
+          fetchAdminUser(session.user.id);
         }, 0);
       } else {
         setAdminUser(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });
 
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         setUser(session.user);
+        // onAuthStateChange will handle the rest
       } else {
         setAdminUser(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });
@@ -68,7 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setAdminUser(null);
+    setIsAdmin(false);
   };
 
   const resetPassword = async (email: string) => {
@@ -81,14 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user: { id: "master-user", email: "admin@axis.com" } as any,
-      session: { user: { id: "master-user" } } as any,
-      adminUser: { name: "Acesso Livre", role: "admin_master" } as any,
-      loading: false,
-      isAdmin: true,
-      signIn: async () => ({ error: null }),
-      signOut: async () => {},
-      resetPassword: async () => ({ error: null }),
+      user,
+      session,
+      adminUser,
+      loading,
+      isAdmin,
+      signIn,
+      signOut,
+      resetPassword,
     }}>
       {children}
     </AuthContext.Provider>

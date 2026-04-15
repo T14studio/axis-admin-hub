@@ -13,9 +13,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Acesso liberado para facilitar o cadastro dos imóveis
-  // if (!user) return <Navigate to="/login" replace />;
-  // if (!isAdmin) return <Navigate to="/access-denied" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/access-denied" replace />;
 
   return <>{children}</>;
 }

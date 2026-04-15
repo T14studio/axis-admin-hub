@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
-  const { adminUser, signOut } = useAuth();
+  const { adminUser, user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <SidebarProvider>
@@ -19,9 +26,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground hidden sm:inline">
-                {adminUser?.name}
+                {adminUser?.name ?? user?.email}
               </span>
-              <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
+              <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sair">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
