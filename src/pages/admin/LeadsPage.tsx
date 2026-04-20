@@ -4,34 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-=======
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-<<<<<<< HEAD
 import { Plus, Search, Edit, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Tables as DBTables, TablesInsert } from "@/integrations/supabase/types";
 import { PremiumPageReveal } from "@/components/ui/premium-page-reveal";
 import { motion, AnimatePresence } from "framer-motion";
-=======
-import { Plus, Search, Edit, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { format } from "date-fns";
-import type { Tables as DBTables, TablesInsert } from "@/integrations/supabase/types";
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
 
 type Lead = DBTables<"leads">;
 const STATUSES = ["novo", "em_atendimento", "qualificado", "visita_agendada", "proposta", "convertido", "perdido"] as const;
 
 const statusColors: Record<string, string> = {
-<<<<<<< HEAD
   novo: "bg-primary/10 text-primary border-primary/20",
   em_atendimento: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   qualificado: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
@@ -39,15 +27,6 @@ const statusColors: Record<string, string> = {
   proposta: "bg-primary/10 text-primary border-primary/20",
   convertido: "bg-success/10 text-success border-success/20",
   perdido: "bg-destructive/10 text-destructive border-destructive/20",
-=======
-  novo: "bg-primary/10 text-primary",
-  em_atendimento: "bg-warning/10 text-warning",
-  qualificado: "bg-accent text-accent-foreground",
-  visita_agendada: "bg-success/10 text-success",
-  proposta: "bg-primary/10 text-primary",
-  convertido: "bg-success/10 text-success",
-  perdido: "bg-destructive/10 text-destructive",
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
 };
 
 const emptyLead: TablesInsert<"leads"> = {
@@ -110,7 +89,6 @@ export default function LeadsPage() {
   });
 
   return (
-<<<<<<< HEAD
     <PremiumPageReveal className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
         <div className="space-y-1">
@@ -142,24 +120,6 @@ export default function LeadsPage() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-56 bg-background/50 border-border/50">
                 <SelectValue placeholder="Filtrar por Status" />
-=======
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Leads</h1>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Lead</Button>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar por nome, e-mail ou telefone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Status" />
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
@@ -170,7 +130,6 @@ export default function LeadsPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-<<<<<<< HEAD
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground animate-pulse">Carregando leads...</p>
@@ -193,27 +152,10 @@ export default function LeadsPage() {
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Status</TableHead>
                     <TableHead className="hidden lg:table-cell font-semibold text-xs uppercase tracking-wider">Origem</TableHead>
                     <TableHead className="hidden lg:table-cell font-semibold text-xs uppercase tracking-wider">Data de Cadastro</TableHead>
-=======
-            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nenhum lead encontrado</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead className="hidden md:table-cell">E-mail</TableHead>
-                    <TableHead className="hidden md:table-cell">Telefone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden lg:table-cell">Origem</TableHead>
-                    <TableHead className="hidden lg:table-cell">Data</TableHead>
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-<<<<<<< HEAD
                   <AnimatePresence mode="popLayout">
                     {filtered.map((lead, index) => (
                       <motion.tr
@@ -250,7 +192,7 @@ export default function LeadsPage() {
                         <TableCell className="hidden lg:table-cell">
                           <span className="text-xs text-muted-foreground">
                             {(() => {
-                              try { return format(new Date(lead.created_at), "dd 'de' MMM, yyyy", { locale: ptBR }); } catch (e) { return "-"; }
+                              try { return format(new Date(lead.created_at), "dd 'de' MMM, yyyy"); } catch (e) { return "-"; }
                             })()}
                           </span>
                         </TableCell>
@@ -264,27 +206,6 @@ export default function LeadsPage() {
                       </motion.tr>
                     ))}
                   </AnimatePresence>
-=======
-                  {filtered.map((lead) => (
-                    <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEdit(lead)}>
-                      <TableCell className="font-medium">{lead.name}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{lead.email || "-"}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{lead.phone || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={statusColors[lead.status] || ""}>
-                          {lead.status?.replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">{lead.origin || "-"}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">
-                        {(() => {
-                          try { return format(new Date(lead.created_at), "dd/MM/yyyy"); } catch (e) { return "-"; }
-                        })()}
-                      </TableCell>
-                      <TableCell><Edit className="h-4 w-4 text-muted-foreground" /></TableCell>
-                    </TableRow>
-                  ))}
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
                 </TableBody>
               </Table>
             </div>
@@ -293,7 +214,6 @@ export default function LeadsPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-<<<<<<< HEAD
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-primary/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">{editing ? "Editar Perfil do Lead" : "Cadastrar Novo Lead"}</DialogTitle>
@@ -319,48 +239,12 @@ export default function LeadsPage() {
               <Label className="text-xs font-semibold uppercase tracking-wider opacity-70">Status de Atendimento</Label>
               <Select value={form.status || "novo"} onValueChange={(v) => setForm({ ...form, status: v as any })}>
                 <SelectTrigger className="bg-muted/30"><SelectValue /></SelectTrigger>
-=======
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar Lead" : "Novo Lead"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Nome *</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>E-mail</Label>
-              <Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Origem</Label>
-              <Input value={form.origin || ""} onChange={(e) => setForm({ ...form, origin: e.target.value })} placeholder="Site, WhatsApp, Indicação..." />
-            </div>
-            <div className="space-y-2">
-              <Label>Interesse</Label>
-              <Input value={form.interest || ""} onChange={(e) => setForm({ ...form, interest: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Interesse</Label>
-              <Input value={form.interest_type || ""} onChange={(e) => setForm({ ...form, interest_type: e.target.value })} placeholder="Compra, Aluguel..." />
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={form.status || "novo"} onValueChange={(v) => setForm({ ...form, status: v as any })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
                 <SelectContent>
                   {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-<<<<<<< HEAD
               <Label className="text-xs font-semibold uppercase tracking-wider opacity-70">Consultor Responsável</Label>
               <Input value={form.responsible || ""} onChange={(e) => setForm({ ...form, responsible: e.target.value })} className="bg-muted/30" />
             </div>
@@ -378,33 +262,10 @@ export default function LeadsPage() {
             <Button onClick={handleSave} disabled={saving} className="px-8 shadow-lg shadow-primary/20">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editing ? "Salvar Alterações" : "Efetivar Cadastro"}
-=======
-              <Label>Responsável</Label>
-              <Input value={form.responsible || ""} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
-            </div>
-            <div className="col-span-full space-y-2">
-              <Label>Mensagem Inicial</Label>
-              <Textarea value={form.initial_message || ""} onChange={(e) => setForm({ ...form, initial_message: e.target.value })} rows={2} />
-            </div>
-            <div className="col-span-full space-y-2">
-              <Label>Observações</Label>
-              <Textarea value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              {editing ? "Salvar" : "Criar"}
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-<<<<<<< HEAD
     </PremiumPageReveal>
-=======
-    </div>
->>>>>>> 835261eef733c6f0bf5e65efdef80876a72219bf
   );
 }
