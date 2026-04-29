@@ -2,11 +2,29 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const getEnvVar = (keys: string[]): string => {
+  for (const key of keys) {
+    const value = import.meta.env[key];
+    if (value && typeof value === 'string') return value.trim();
+  }
+  return '';
+};
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// URL sanitization to remove trailing slashes and spaces
+let SUPABASE_URL = getEnvVar(['VITE_SUPABASE_URL']);
+if (SUPABASE_URL.endsWith('/')) {
+  SUPABASE_URL = SUPABASE_URL.slice(0, -1);
+}
+
+// Checking both keys for fallback
+const SUPABASE_KEY = getEnvVar(['VITE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_PUBLISHABLE_KEY']);
+
+if (!SUPABASE_URL) {
+  console.error('🚨 [Supabase] URL is undefined! Please set VITE_SUPABASE_URL in your .env file.');
+}
+if (!SUPABASE_KEY) {
+  console.error('🚨 [Supabase] Key is undefined! Please set VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY in your .env file.');
+}
 
 // Verificar e limpar sessões expiradas ANTES de criar o cliente
 // para evitar travamento no refresh de token
@@ -28,7 +46,7 @@ try {
   }
 } catch (_) {}
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,

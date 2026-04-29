@@ -131,12 +131,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        console.error("🚨 [useAuth] signIn error (Supabase):", error);
+        setLoading(false);
+        return { error: error.message };
+      }
+      
+      console.log("✅ [useAuth] signIn success:", data?.user?.email);
+      return { error: null };
+    } catch (err: any) {
+      console.error("🔥 [useAuth] signIn unexpected exception:", err);
       setLoading(false);
-      return { error: error.message };
+      return { error: err?.message || "Erro inesperado de rede (Failed to fetch)" };
     }
-    return { error: null };
   };
 
   const signOut = async () => {
