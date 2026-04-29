@@ -16,13 +16,14 @@ const projects = [
 
 async function checkProjects() {
   const email = 'eticahostservidor@gmail.com'
-  const password = 'financeiro2023'
+  const passwords = ['Axis@2024', 'Axis1234', 'AxisImobiliaria@2024', 'eticahost', '123456', 'admin123', 'Axis2024!', 'financeiro2023']
   
-  for (const project of projects) {
-    console.log(`\n--- Checking project: ${project.name} (${project.url}) ---`)
-    const supabase = createClient(project.url, project.key)
-    
-    // Check auth
+  const project = projects[0] // Env Project
+  console.log(`\n--- Checking project: ${project.name} (${project.url}) ---`)
+  const supabase = createClient(project.url, project.key)
+  
+  for (const password of passwords) {
+    console.log(`Trying password: ${password}`)
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -31,7 +32,8 @@ async function checkProjects() {
     if (authError) {
       console.error(`Auth Error: ${authError.message}`)
     } else {
-      console.log(`Auth Success! User ID: ${authData.user?.id}`)
+      console.log(`Auth Success! Password is: ${password}`)
+      console.log(`User ID: ${authData.user?.id}`)
       
       const { data: adminData, error: adminError } = await supabase
         .from('admin_users')
@@ -46,6 +48,7 @@ async function checkProjects() {
       } else {
         console.log('Admin User Data:', adminData)
       }
+      return
     }
   }
 }

@@ -1,8 +1,8 @@
 [
   {
     "id": "TC001",
-    "title": "Administrator can sign in and reach the admin dashboard",
-    "description": "Verifies an administrator can log in from the login page and is redirected into the protected admin dashboard successfully.",
+    "title": "Administrator can log in and reach the admin dashboard",
+    "description": "Verifies that a user can sign in with valid credentials and is redirected into the protected admin dashboard area.",
     "category": "Admin Authentication",
     "steps": [
       {
@@ -23,15 +23,134 @@
       },
       {
         "type": "assertion",
-        "description": "Verify the user lands on the admin dashboard"
+        "description": "Verify the user lands on the dashboard"
       }
     ],
     "priority": "High"
   },
   {
     "id": "TC002",
-    "title": "Create and publish a property with CEP address lookup and images",
-    "description": "Verifies an operator can create a new property with CEP-filled address, upload images, publish it, and see it listed in inventory.",
+    "title": "Admin can access protected dashboard after login",
+    "description": "Logs in as an administrator and expects to land on the admin dashboard with KPI content visible.",
+    "category": "Lead Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user lands on the dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard KPI content is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Session continuity while navigating between leads and properties",
+    "description": "After logging in, navigates between leads and properties pages and expects to remain authenticated without re-login prompts.",
+    "category": "Lead Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the leads page"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the properties page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the properties inventory list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is not prompted to log in again"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Update an existing user role/permissions and see it reflected in the list",
+    "description": "Verifies an administrator can edit a user, change role/permissions, save, and see the updated role/permissions reflected in the users list.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open user management"
+      },
+      {
+        "type": "action",
+        "description": "Start editing a user from the list"
+      },
+      {
+        "type": "action",
+        "description": "Change the user role or permissions to a different valid option"
+      },
+      {
+        "type": "action",
+        "description": "Save the user changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the users list shows the user with the updated role or permissions"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Operator can create a published property with CEP address autofill and images",
+    "description": "Verifies that a user can create a new property with CEP-based address autofill, attach multiple images, publish it, and see it listed in inventory.",
     "category": "Property Management",
     "steps": [
       {
@@ -52,7 +171,7 @@
       },
       {
         "type": "action",
-        "description": "Click the navigation link to the properties module"
+        "description": "Click the properties section in the admin navigation"
       },
       {
         "type": "action",
@@ -68,15 +187,15 @@
       },
       {
         "type": "action",
-        "description": "Select a valid category in the category field"
+        "description": "Select a valid category"
       },
       {
         "type": "action",
-        "description": "Fill a valid CEP into the CEP field and trigger the lookup"
+        "description": "Fill a valid CEP into the CEP field to trigger address lookup"
       },
       {
         "type": "action",
-        "description": "Upload multiple valid image files into the property images input"
+        "description": "Upload multiple property images"
       },
       {
         "type": "action",
@@ -88,56 +207,19 @@
       },
       {
         "type": "assertion",
-        "description": "Verify the new property is listed in the inventory with published status indicated"
-      }
-    ],
-    "priority": "High"
-  },
-  {
-    "id": "TC003",
-    "title": "Update a lead status and see it reflected in the list",
-    "description": "Ensures an operator can open a lead, change its status, and see the updated status reflected when returning to the leads list.",
-    "category": "Lead Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open lead management"
-      },
-      {
-        "type": "action",
-        "description": "Open the details view for a lead from the list"
-      },
-      {
-        "type": "action",
-        "description": "Update the lead status to a different valid status"
+        "description": "Verify the new property appears in the property inventory list"
       },
       {
         "type": "assertion",
-        "description": "Verify the leads list shows the lead with the updated status"
+        "description": "Verify the property is shown as published in the inventory list"
       }
     ],
     "priority": "High"
   },
   {
-    "id": "TC004",
-    "title": "Create a new contract with metadata and a document and see it listed",
-    "description": "Ensures an operator can create a contract by entering metadata, uploading a document, saving, and then seeing the new contract in the contracts list.",
+    "id": "TC006",
+    "title": "Create a new contract with metadata and a supported document",
+    "description": "Creates a new contract by entering required metadata, uploading a supported document, and expects the contract to appear in the contracts list.",
     "category": "Contract Management",
     "steps": [
       {
@@ -146,11 +228,11 @@
       },
       {
         "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
+        "description": "Fill {{LOGIN_USER}} into the email field"
       },
       {
         "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
       },
       {
         "type": "action",
@@ -158,7 +240,7 @@
       },
       {
         "type": "action",
-        "description": "Click the navigation item to open contract management"
+        "description": "Click the navigation link to open the contracts page"
       },
       {
         "type": "action",
@@ -166,11 +248,11 @@
       },
       {
         "type": "action",
-        "description": "Fill required contract metadata fields with valid values"
+        "description": "Fill valid values into the required contract metadata fields"
       },
       {
         "type": "action",
-        "description": "Upload a valid contract document file"
+        "description": "Upload a supported contract document file"
       },
       {
         "type": "action",
@@ -178,343 +260,19 @@
       },
       {
         "type": "assertion",
-        "description": "Verify the contracts list includes the newly created contract"
-      }
-    ],
-    "priority": "High"
-  },
-  {
-    "id": "TC005",
-    "title": "Create a new client and see it listed in the directory",
-    "description": "Ensures an operator can add a client with contact and company details and then see the client listed in the directory.",
-    "category": "Client Directory",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open the client directory"
-      },
-      {
-        "type": "action",
-        "description": "Start creating a new client"
-      },
-      {
-        "type": "action",
-        "description": "Fill client contact and company fields with valid values"
-      },
-      {
-        "type": "action",
-        "description": "Save the client"
+        "description": "Verify the contracts list includes the newly created contract record"
       },
       {
         "type": "assertion",
-        "description": "Verify the client directory list includes the newly created client"
-      }
-    ],
-    "priority": "High"
-  },
-  {
-    "id": "TC006",
-    "title": "Filter leads by status to triage the pipeline",
-    "description": "Ensures an operator can filter the leads list by status and only matching leads are shown.",
-    "category": "Lead Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open lead management"
-      },
-      {
-        "type": "action",
-        "description": "Select a valid lead status filter"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify only leads matching the selected status are displayed"
+        "description": "Verify the new contract shows an attached document indicator"
       }
     ],
     "priority": "High"
   },
   {
     "id": "TC007",
-    "title": "View and update a user's role or permissions",
-    "description": "Verifies an administrator can edit an existing user’s role or permissions and the updated role is reflected in the user list.",
-    "category": "User Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_USER}} into the email field"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link to user management"
-      },
-      {
-        "type": "action",
-        "description": "Start editing a user from the user list"
-      },
-      {
-        "type": "action",
-        "description": "Change the user role to a different available role"
-      },
-      {
-        "type": "action",
-        "description": "Save the user changes"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify the user list reflects the updated role or permissions for the edited user"
-      }
-    ],
-    "priority": "Medium"
-  },
-  {
-    "id": "TC008",
-    "title": "Apply multiple lead filters and see filtered results",
-    "description": "Ensures an operator can apply multiple filters on the leads list and see the results update accordingly.",
-    "category": "Lead Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open lead management"
-      },
-      {
-        "type": "action",
-        "description": "Apply a first valid filter on the leads list"
-      },
-      {
-        "type": "action",
-        "description": "Apply a second valid filter on the leads list"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify the leads list updates to reflect the combined filters"
-      }
-    ],
-    "priority": "Medium"
-  },
-  {
-    "id": "TC009",
-    "title": "Search or filter the client directory to find matching clients",
-    "description": "Ensures an operator can search or filter clients and the directory shows only matching results.",
-    "category": "Client Directory",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open the client directory"
-      },
-      {
-        "type": "action",
-        "description": "Enter a search term or select a valid filter value"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify the client list updates to show only clients matching the search or filter"
-      }
-    ],
-    "priority": "Medium"
-  },
-  {
-    "id": "TC010",
-    "title": "Save application settings successfully",
-    "description": "Verifies an administrator can change an application setting and save, receiving a visible confirmation that updates were applied.",
-    "category": "Application Settings",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_USER}} into the email field"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link to application settings"
-      },
-      {
-        "type": "action",
-        "description": "Change a setting value to another valid value"
-      },
-      {
-        "type": "action",
-        "description": "Save the settings changes"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify a success confirmation is visible indicating settings were updated"
-      }
-    ],
-    "priority": "Medium"
-  },
-  {
-    "id": "TC011",
-    "title": "Prevent saving a contract when an unsupported file type is uploaded",
-    "description": "Ensures the contract form shows a file type validation error and prevents completion when an unsupported document type is selected.",
-    "category": "Contract Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the email field with {{LOGIN_USER}}"
-      },
-      {
-        "type": "action",
-        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation item to open contract management"
-      },
-      {
-        "type": "action",
-        "description": "Start creating a new contract"
-      },
-      {
-        "type": "action",
-        "description": "Attempt to upload a document with an unsupported file type"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify a file type validation error is visible and the contract cannot be saved"
-      }
-    ],
-    "priority": "Low"
-  },
-  {
-    "id": "TC012",
-    "title": "Validation blocks saving invalid application setting value",
-    "description": "Verifies that entering an invalid value for a setting shows a validation error and prevents saving.",
-    "category": "Application Settings",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_USER}} into the email field"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link to application settings"
-      },
-      {
-        "type": "action",
-        "description": "Fill an invalid value into a setting field that enforces validation"
-      },
-      {
-        "type": "action",
-        "description": "Attempt to save the settings"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify a validation error is visible for the invalid setting input"
-      }
-    ],
-    "priority": "Low"
-  },
-  {
-    "id": "TC013",
-    "title": "Required-field validation blocks saving a new property",
-    "description": "Verifies the property form shows validation errors and prevents saving when required fields are left empty.",
+    "title": "Property creation enforces required fields",
+    "description": "Verifies that attempting to save a new property with required fields empty shows validation errors and prevents creation.",
     "category": "Property Management",
     "steps": [
       {
@@ -535,7 +293,7 @@
       },
       {
         "type": "action",
-        "description": "Click the navigation link to the properties module"
+        "description": "Click the properties section in the admin navigation"
       },
       {
         "type": "action",
@@ -547,15 +305,322 @@
       },
       {
         "type": "assertion",
-        "description": "Verify required-field validation errors are visible"
+        "description": "Verify required field validation errors are visible"
       }
     ],
-    "priority": "Low"
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Update an application setting and receive a success confirmation",
+    "description": "Verifies an administrator can change a setting value, save, and see a confirmation that settings were updated.",
+    "category": "Application Settings",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open application settings"
+      },
+      {
+        "type": "action",
+        "description": "Change a setting value to a different valid value"
+      },
+      {
+        "type": "action",
+        "description": "Save the settings"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a success confirmation is visible indicating settings were updated"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Update lead status and see it reflected back in the list",
+    "description": "Updates a lead’s status in the detail view and expects the lead to show the updated status when returning to the list.",
+    "category": "Lead Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the leads page"
+      },
+      {
+        "type": "action",
+        "description": "Open a lead from the list"
+      },
+      {
+        "type": "action",
+        "description": "Change the lead status to a different valid status"
+      },
+      {
+        "type": "action",
+        "description": "Save the lead changes"
+      },
+      {
+        "type": "action",
+        "description": "Return to the leads list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead appears in the list with the updated status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead list reflects the status change without requiring a page reload"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC010",
+    "title": "Filter leads by status and open a lead detail view",
+    "description": "Filters the lead list by a status and expects the list to update and a lead detail view to open successfully.",
+    "category": "Lead Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the leads page"
+      },
+      {
+        "type": "action",
+        "description": "Select a status in the lead status filter"
+      },
+      {
+        "type": "action",
+        "description": "Open a lead from the filtered list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead detail view is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead status control reflects the selected status filter context"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC011",
+    "title": "Dashboard KPIs and charts update when date range or filters change",
+    "description": "Verifies that KPI tiles and a dashboard chart respond to a changed date range or filter selection.",
+    "category": "Dashboard Analytics",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Adjust the dashboard date range or filter to a different valid option"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the KPI summary is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a dashboard chart updates to reflect the selected range or filter"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC012",
+    "title": "Create a new client and see it listed in the directory",
+    "description": "Creates a client with contact and company details and expects the client to appear in the directory list after saving.",
+    "category": "Client Directory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the clients page"
+      },
+      {
+        "type": "action",
+        "description": "Start creating a new client"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Client Axis\" into the client name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill valid values into the remaining required client fields"
+      },
+      {
+        "type": "action",
+        "description": "Save the client"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client directory list includes \"Test Client Axis\""
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC013",
+    "title": "Apply multiple lead filters and see filtered results",
+    "description": "Applies multiple filters on the leads page and expects the results list to update to match the selected criteria.",
+    "category": "Lead Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the leads page"
+      },
+      {
+        "type": "action",
+        "description": "Apply a status filter"
+      },
+      {
+        "type": "action",
+        "description": "Apply an additional available lead filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead list updates to show only filtered results"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify active filter indicators are displayed"
+      }
+    ],
+    "priority": "Medium"
   },
   {
     "id": "TC014",
-    "title": "Required-field validation when creating a new user",
-    "description": "Verifies that attempting to create a new user with required fields left empty shows validation errors and does not create the user.",
+    "title": "View contracts list",
+    "description": "Opens the contracts page and expects the contracts list to render and be usable for browsing existing records.",
+    "category": "Contract Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the contracts page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a list of contracts or an empty state is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify controls to start a new contract are available"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC015",
+    "title": "Show required-field validation when creating a new user with empty fields",
+    "description": "Verifies the user creation form blocks saving when required fields are empty and displays validation errors.",
     "category": "User Management",
     "steps": [
       {
@@ -576,11 +641,11 @@
       },
       {
         "type": "action",
-        "description": "Click the navigation link to user management"
+        "description": "Click the navigation link to open user management"
       },
       {
         "type": "action",
-        "description": "Start new user creation"
+        "description": "Start creating a new user"
       },
       {
         "type": "action",
@@ -588,15 +653,175 @@
       },
       {
         "type": "assertion",
-        "description": "Verify required-field validation errors are displayed"
+        "description": "Verify required-field validation errors are displayed and the user is not created"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC016",
+    "title": "Dashboard chart provides metric detail on inspection",
+    "description": "Verifies that inspecting a chart segment provides a tooltip or detail view for the selected metric.",
+    "category": "Dashboard Analytics",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Inspect a dashboard chart segment to reveal metric detail"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a tooltip or detail view for the selected metric is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC017",
+    "title": "Search or filter clients and see refined results",
+    "description": "Uses the client search or filter controls and expects the directory list to update to only matching clients.",
+    "category": "Client Directory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the clients page"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Client\" into the client search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client list updates to show search-matching results"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the list does not show clearly non-matching clients"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC018",
+    "title": "Block saving when an application setting value is invalid",
+    "description": "Verifies the settings form shows inline validation errors for an invalid value and prevents persisting the change.",
+    "category": "Application Settings",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open application settings"
+      },
+      {
+        "type": "action",
+        "description": "Fill an invalid value into a setting field that enforces validation"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to save the settings"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is displayed and the invalid setting is not saved"
       }
     ],
     "priority": "Low"
   },
   {
-    "id": "TC015",
-    "title": "Login form validates invalid email format",
-    "description": "Verifies the login form blocks submission with an invalid email format and shows an email validation error.",
+    "id": "TC019",
+    "title": "Prevent contract save when an unsupported file type is selected",
+    "description": "Attempts to upload an unsupported contract file type and expects an inline validation error and saving to be blocked.",
+    "category": "Contract Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to open the contracts page"
+      },
+      {
+        "type": "action",
+        "description": "Start creating a new contract"
+      },
+      {
+        "type": "action",
+        "description": "Upload an unsupported document file type"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a file type validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the contract cannot be saved"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC020",
+    "title": "Login form blocks invalid email format",
+    "description": "Verifies that entering an invalid email format prevents login submission and shows an email validation error.",
     "category": "Admin Authentication",
     "steps": [
       {
@@ -618,96 +843,6 @@
       {
         "type": "assertion",
         "description": "Verify an email validation error is visible"
-      }
-    ],
-    "priority": "Low"
-  },
-  {
-    "id": "TC016",
-    "title": "Cancel editing a user without persisting changes",
-    "description": "Verifies that canceling out of editing a user does not persist changes to role or permissions in the user list.",
-    "category": "User Management",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_USER}} into the email field"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link to user management"
-      },
-      {
-        "type": "action",
-        "description": "Start editing a user from the user list"
-      },
-      {
-        "type": "action",
-        "description": "Change the user role to a different available role"
-      },
-      {
-        "type": "action",
-        "description": "Cancel and return to the user list without saving"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify the user list does not reflect the unsaved role or permission change"
-      }
-    ],
-    "priority": "Low"
-  },
-  {
-    "id": "TC017",
-    "title": "Cancel settings changes without persisting",
-    "description": "Verifies that abandoning settings edits without saving does not persist the modified values.",
-    "category": "Application Settings",
-    "steps": [
-      {
-        "type": "action",
-        "description": "Navigate to /login"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_USER}} into the email field"
-      },
-      {
-        "type": "action",
-        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
-      },
-      {
-        "type": "action",
-        "description": "Submit the login form"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link to application settings"
-      },
-      {
-        "type": "action",
-        "description": "Change a setting value to another valid value"
-      },
-      {
-        "type": "action",
-        "description": "Click the control to leave the page without saving by navigating to another admin module"
-      },
-      {
-        "type": "action",
-        "description": "Click the navigation link back to application settings"
-      },
-      {
-        "type": "assertion",
-        "description": "Verify the previously changed setting value was not persisted"
       }
     ],
     "priority": "Low"

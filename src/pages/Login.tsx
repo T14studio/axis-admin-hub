@@ -30,15 +30,20 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
-    if (email !== trimmedEmail) {
-      toast.info("O e-mail continha espaços extras que foram removidos.");
+    const sanitizedEmail = email.trim().toLowerCase();
+    
+    if (email !== sanitizedEmail) {
+      console.log("ℹ️ [Login] Email sanitizado de:", email, "para:", sanitizedEmail);
     }
 
     setSubmitting(true);
-    const { error } = await signIn(trimmedEmail, password);
+    const { error } = await signIn(sanitizedEmail, password);
     if (error) {
-      if (error.includes("Invalid login credentials")) {
+      if (error === 'email_not_confirmed') {
+        toast.warning("E-mail não confirmado", {
+          description: "Por favor, confirme seu e-mail para ativar sua conta. Verifique sua caixa de entrada."
+        });
+      } else if (error.includes("Invalid login credentials")) {
         toast.error("Credenciais inválidas", { 
           description: "Verifique se o Caps Lock está ativado ou tente redefinir sua senha." 
         });

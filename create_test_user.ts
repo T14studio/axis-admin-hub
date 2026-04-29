@@ -6,7 +6,7 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function createTestUser() {
-  const email = 'test_admin@example.com'
+  const email = 'axis_tester@gmail.com'
   const password = 'TestPassword123!'
   
   console.log(`Creating test user: ${email}`)

