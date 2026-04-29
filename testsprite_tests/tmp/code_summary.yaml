@@ -1,0 +1,100 @@
+version: "2"
+type: frontend
+tech_stack:
+  - Typescript
+  - React (Vite)
+  - shadcn/ui (Tailwind)
+  - React Query
+  - Supabase
+  - React Hook Form
+  - Zod
+routes:
+  - path: /login
+    file: src/pages/Login.tsx
+    auth_required: false
+    description: User login page
+  - path: /reset-password
+    file: src/pages/ResetPassword.tsx
+    auth_required: false
+    description: Password reset page
+  - path: /admin
+    file: src/pages/admin/Dashboard.tsx
+    auth_required: true
+    description: Admin dashboard overview
+  - path: /admin/leads
+    file: src/pages/admin/LeadsPage.tsx
+    auth_required: true
+    description: Lead management list
+  - path: /admin/properties
+    file: src/pages/admin/PropertiesPage.tsx
+    auth_required: true
+    description: Property inventory list
+  - path: /admin/properties/:id
+    file: src/pages/admin/PropertyForm.tsx
+    auth_required: true
+    description: Create or edit property details
+  - path: /admin/contracts
+    file: src/pages/admin/ContractsPage.tsx
+    auth_required: true
+    description: Contract management list
+  - path: /admin/clients
+    file: src/pages/admin/ClientsPage.tsx
+    auth_required: true
+    description: Client directory
+  - path: /admin/users
+    file: src/pages/admin/UsersPage.tsx
+    auth_required: true
+    description: Admin user management
+  - path: /admin/settings
+    file: src/pages/admin/SettingsPage.tsx
+    auth_required: true
+    description: Application settings
+features:
+  - name: Admin Authentication
+    description: Login with email and password using Supabase Auth
+    files:
+      - src/pages/Login.tsx
+      - src/hooks/useAuth.tsx
+    entry_route: /login
+    user_interactions:
+      - Fill email input
+      - Fill password input
+      - Click "Entrar" button
+    api_calls:
+      - method: POST
+        endpoint: supabase.auth.signInWithPassword
+  - name: Property Management
+    description: Create, edit, and list properties with images and details
+    files:
+      - src/pages/admin/PropertiesPage.tsx
+      - src/pages/admin/PropertyForm.tsx
+    entry_route: /admin/properties
+    user_interactions:
+      - Click "Novo imóvel" button
+      - Fill property title, price, and category
+      - Fill address using CEP lookup
+      - Upload property images
+      - Toggle "Publicado" switch
+      - Click "Salvar" button
+    api_calls:
+      - method: POST
+        endpoint: supabase.from("properties").insert
+      - method: PATCH
+        endpoint: supabase.from("properties").update
+      - method: POST
+        endpoint: supabase.storage.from("property-images").upload
+  - name: Lead Management
+    description: View and manage incoming leads
+    files:
+      - src/pages/admin/LeadsPage.tsx
+    entry_route: /admin/leads
+    user_interactions:
+      - View list of leads
+      - Filter leads by status
+  - name: Contract Management
+    description: Manage property contracts and documents
+    files:
+      - src/pages/admin/ContractsPage.tsx
+      - src/pages/admin/ContractForm.tsx
+    entry_route: /admin/contracts
+known_limitations: []

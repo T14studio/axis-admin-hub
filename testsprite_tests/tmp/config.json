@@ -1,0 +1,20 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8080",
+  "loginUser": "eticahostservidor@gmail.com",
+  "loginPassword": "financeiro2023",
+  "executionArgs": {
+    "projectName": "axis-admin-hub-main",
+    "projectPath": "c:\\Users\\rrps2\\Downloads\\axis-admin-hub-main\\axis-admin-hub-main",
+    "testIds": [],
+    "additionalInstruction": "Execute all tests in the frontend test plan. Make sure to use the credentials provided in the config for login.",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-7j_8l0jrRh9a0Uo9nby5G6_QyDxO7RzKJ-jPI7trexnaPj6EB_p67nPm6v7QhMhYuI5o2KTJp1h81n4wXVfzayznjrTWckXm6T0vxvAqnh6bNXOBPdOltx3R4CMARR9eGoY"
+    }
+  },
+  "serverPort": 52188,
+  "proxy": "http://48c8222f-f2f2-4ddb-a21e-c8b1aa2b55d5:F4HsYGb7SoGXlSww16qwz7gzmxd37I0b@tun.testsprite.com:8080"
+}

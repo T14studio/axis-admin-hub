@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Building2, Loader2, Mail, Lock } from "lucide-react";
+import { Building2, Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Login() {
@@ -14,6 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { signIn, resetPassword } = useAuth();
 
   if (loading) {
@@ -29,10 +30,21 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (email !== trimmedEmail) {
+      toast.info("O e-mail continha espaços extras que foram removidos.");
+    }
+
     setSubmitting(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(trimmedEmail, password);
     if (error) {
-      toast.error("Erro ao fazer login", { description: error });
+      if (error.includes("Invalid login credentials")) {
+        toast.error("Credenciais inválidas", { 
+          description: "Verifique se o Caps Lock está ativado ou tente redefinir sua senha." 
+        });
+      } else {
+        toast.error("Erro ao fazer login", { description: error });
+      }
     }
     setSubmitting(false);
   };
@@ -99,7 +111,23 @@ export default function Login() {
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-9" required />
+                  <Input 
+                    id="password" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    className="pl-9 pr-10" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                    aria-label={showPassword ? "Esconder senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
