@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Search, Loader2, Eye } from "lucide-react";
 import { format } from "date-fns";
 import type { Tables as DBTables } from "@/integrations/supabase/types";
+import { PROPERTY_CATEGORIES } from "@/types/property";
 
 type Property = DBTables<"properties">;
 
@@ -19,6 +20,7 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => { fetchProperties(); }, []);
 
@@ -34,7 +36,8 @@ export default function PropertiesPage() {
       (p.reference_code || "").toLowerCase().includes(search.toLowerCase()) ||
       (p.neighborhood || "").toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || p.status === statusFilter;
-    return match && matchStatus;
+    const matchType = typeFilter === "all" || p.property_type === typeFilter;
+    return match && matchStatus && matchType;
   });
 
   const formatPrice = (v: number | null) => v ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-";
@@ -53,6 +56,22 @@ export default function PropertiesPage() {
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Buscar por título, código ou bairro..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Tipo de imóvel" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                {Object.entries(PROPERTY_CATEGORIES).map(([category, types]) => (
+                  <SelectGroup key={category}>
+                    <SelectLabel>{category}</SelectLabel>
+                    {types.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>

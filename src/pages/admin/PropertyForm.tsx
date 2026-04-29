@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,11 +14,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, Loader2, Save, Upload, X, Star, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert, Tables as DBTables } from "@/integrations/supabase/types";
+import { PROPERTY_CATEGORIES } from "@/types/property";
 
 type PropertyImage = DBTables<"property_images">;
 
 const PURPOSES = ["venda", "locação", "venda_e_locação"];
-const TYPES = ["apartamento", "casa", "terreno", "sala_comercial", "galpao", "cobertura", "flat", "chacara", "fazenda", "outro"];
 const PROXIMITY_ITEMS = [
   "Centro Comercial", "Ciclovia", "Clube", "Conveniência", "Correio", "Delegacia",
   "Escola Estadual", "Escola Municipal", "Escola Particular", "Faculdade", "Farmácia", "Feira",
@@ -276,7 +276,16 @@ export default function PropertyForm() {
                 <Select value={form.property_type} onValueChange={(v) => set("property_type", v)}>
                   <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
                   <SelectContent>
-                    {TYPES.map(t => <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>)}
+                    {Object.entries(PROPERTY_CATEGORIES).map(([category, types]) => (
+                      <SelectGroup key={category}>
+                        <SelectLabel>{category}</SelectLabel>
+                        {types.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
