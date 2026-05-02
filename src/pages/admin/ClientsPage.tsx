@@ -47,8 +47,27 @@ export default function ClientsPage() {
   }
 
   async function handleSave() {
-    if (!form.full_name || !form.cpf) { toast.error("Nome e CPF são obrigatórios"); return; }
+    if (!form.full_name || !form.cpf || !form.email) { 
+      toast.error("Nome, CPF e E-mail são obrigatórios"); return; 
+    }
+    
     setSaving(true);
+    
+    // Quick check for duplicates (optimistic)
+    if (!editing) {
+      const { data: existing } = await supabase
+        .from("clients")
+        .select("id")
+        .or(`cpf.eq.${form.cpf.replace(/\D/g, "")},email.eq.${form.email.toLowerCase().trim()}`)
+        .maybeSingle();
+      
+      if (existing) {
+        toast.error("Já existe um cliente com este CPF ou E-mail.");
+        setSaving(false);
+        return;
+      }
+    }
+
     if (editing) {
       const { error } = await supabase.from("clients").update(form).eq("id", editing.id);
       if (error) toast.error(error.message); else toast.success("Cliente atualizado");
@@ -122,7 +141,7 @@ export default function ClientsPage() {
             <div className="col-span-full space-y-2"><Label>Nome Completo *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
             <div className="space-y-2"><Label>CPF *</Label><Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /></div>
             <div className="space-y-2"><Label>Telefone</Label><Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            <div className="space-y-2"><Label>E-mail *</Label><Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@exemplo.com" /></div>
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select value={form.client_type || "pessoa_fisica"} onValueChange={(v) => setForm({ ...form, client_type: v })}>

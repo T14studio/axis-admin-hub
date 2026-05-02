@@ -43,7 +43,8 @@ export default function PropertyForm() {
     built_area: null, total_area: null,
     observations: "", proximity: [], condition: "usado",
     highlight: [], expiration_date: "", is_reserved: false,
-    broker_name: "", status: "ativo", published: true,
+    broker_name: "", status: "ativo", ativo: true,
+    is_published: false, publish_site: false, publish_whatsapp: false,
   });
 
   useEffect(() => {
@@ -105,6 +106,8 @@ export default function PropertyForm() {
     if (!files || files.length === 0 || !id || id === "new") return;
 
     setUploading(true);
+    const toastId = toast.loading("Enviando imagens... aguarde");
+    let currentCount = images.length;
     for (const file of Array.from(files)) {
       const fileExt = file.name.split(".").pop();
       const fileName = `${id}/${Math.random()}.${fileExt}`;
@@ -115,7 +118,7 @@ export default function PropertyForm() {
         .upload(filePath, file);
 
       if (uploadError) {
-        toast.error(`Erro ao subir imagem: ${uploadError.message}`);
+        toast.error(`Erro ao subir imagem ${file.name}: ${uploadError.message}`);
         continue;
       }
 
@@ -126,12 +129,15 @@ export default function PropertyForm() {
       const { error: dbError } = await supabase.from("property_images").insert({
         property_id: id,
         image_url: publicUrl,
-        display_order: images.length,
-        is_main: images.length === 0, // Primeira imagem vira capa automaticamente
+        display_order: currentCount,
+        is_main: currentCount === 0, // Primeira imagem vira capa automaticamente
       });
 
       if (dbError) toast.error(dbError.message);
+      else currentCount++;
     }
+    
+    toast.success(`${Array.from(files).length} imagens enviadas com sucesso!`, { id: toastId });
     
     fetchProperty(id);
     setUploading(false);
@@ -200,7 +206,24 @@ export default function PropertyForm() {
     }
   }
 
-  const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+  const set = (k: string, v: any) => {
+    setForm((p: any) => {
+      const newState = { ...p, [k]: v };
+      
+      // Logic: Se "Publicar" = false → desmarcar canais
+      if (k === "is_published" && v === false) {
+        newState.publish_site = false;
+        newState.publish_whatsapp = false;
+      }
+      
+      // Logic: Se qualquer canal ativo → is_published = true
+      if ((k === "publish_site" || k === "publish_whatsapp") && v === true) {
+        newState.is_published = true;
+      }
+
+      return newState;
+    });
+  };
 
   const toggleProximity = (item: string) => {
     const current = [...(form.proximity || [])];
@@ -356,7 +379,9 @@ export default function PropertyForm() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold">Imagens do Imóvel</CardTitle>
-                <p className="text-[11px] text-muted-foreground">A primeira imagem será a capa por padrão.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Você pode selecionar <b>várias imagens</b> de uma vez. A primeira será a capa.
+                </p>
               </div>
               <div>
                 <Input
@@ -375,7 +400,7 @@ export default function PropertyForm() {
                   disabled={isNew || uploading}
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                  {isNew ? "Salve para subir fotos" : "Adicionar Fotos"}
+                  {isNew ? "Salve para subir fotos" : "Selecionar Múltiplas Fotos"}
                 </Button>
               </div>
             </CardHeader>
@@ -532,11 +557,61 @@ export default function PropertyForm() {
             </CardContent>
           </Card>
 
-          {/* Published toggle */}
+          {/* CRM Status */}
           <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <Label>Publicado</Label>
-              <Switch checked={form.published} onCheckedChange={(v) => set("published", v)} />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status Interno (CRM)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm">Imóvel Ativo</Label>
+                  <p className="text-[10px] text-muted-foreground">Disponível para contratos</p>
+                </div>
+                <Switch checked={form.ativo} onCheckedChange={(v) => set("ativo", v)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Publication controls */}
+          <Card className={form.is_published ? "border-primary/50 shadow-sm" : ""}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Publicação & Canais</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-bottom">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Publicar Imóvel</Label>
+                  <p className="text-[10px] text-muted-foreground">Visibilidade externa</p>
+                </div>
+                <Switch checked={form.is_published} onCheckedChange={(v) => set("is_published", v)} />
+              </div>
+              
+              <div className="space-y-3 pt-2">
+                <div className={`flex items-center space-x-2 transition-opacity ${!form.is_published ? "opacity-50 pointer-events-none" : ""}`}>
+                  <Checkbox 
+                    id="publish_site" 
+                    checked={form.publish_site} 
+                    onCheckedChange={(v) => set("publish_site", !!v)} 
+                  />
+                  <Label htmlFor="publish_site" className="text-sm cursor-pointer">Exibir no Site</Label>
+                </div>
+                
+                <div className={`flex items-center space-x-2 transition-opacity ${!form.is_published ? "opacity-50 pointer-events-none" : ""}`}>
+                  <Checkbox 
+                    id="publish_whatsapp" 
+                    checked={form.publish_whatsapp} 
+                    onCheckedChange={(v) => set("publish_whatsapp", !!v)} 
+                  />
+                  <Label htmlFor="publish_whatsapp" className="text-sm cursor-pointer">Disponível no WhatsApp IA</Label>
+                </div>
+              </div>
+
+              {form.is_published && !form.publish_site && !form.publish_whatsapp && (
+                <p className="text-[10px] text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-100">
+                  ⚠️ Publicado mas sem canais selecionados. Não será visível externamente.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

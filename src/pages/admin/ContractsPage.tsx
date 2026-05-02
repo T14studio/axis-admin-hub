@@ -31,15 +31,20 @@ export default function ContractsPage() {
     setLoading(true);
     const { data } = await supabase
       .from("contracts")
-      .select("*")
+      .select(`
+        *,
+        clients (
+          full_name
+        )
+      `)
       .order("created_at", { ascending: false });
     setContracts(data || []);
     setLoading(false);
   }
 
   const filtered = contracts.filter((c) => {
-    const name = (c.client_name || c.nome_cliente || "").toLowerCase();
-    const cpf = c.client_cpf || c.cpf || c.cpf_cnpj || "";
+    const name = (c.clients?.full_name || "").toLowerCase();
+    const cpf = c.client_cpf || "";
     const match = !search ||
       (c.contract_number || "").toLowerCase().includes(search.toLowerCase()) ||
       cpf.includes(search) ||
@@ -50,13 +55,50 @@ export default function ContractsPage() {
 
   const formatPrice = (v: number | null) => v ? `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-";
 
+  const stats = {
+    total: contracts.length,
+    active: contracts.filter(c => c.status === "ativo").length,
+    pending: contracts.filter(c => c.status === "pendente").length,
+    expiring: contracts.filter(c => c.status === "vencendo").length,
+  };
+
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Contratos</h1>
-        <Button onClick={() => navigate("/admin/contracts/new")}><Plus className="h-4 w-4 mr-1" /> Novo Contrato</Button>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Gestão de Contratos</h1>
+        <Button onClick={() => navigate("/admin/contracts/new")} className="shadow-lg shadow-primary/20">
+          <Plus className="h-4 w-4 mr-2" /> Novo Contrato
+        </Button>
       </div>
-      <Card className="border-primary/20 bg-primary/5">
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-primary/5 border-primary/10">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase">Total</p>
+            <p className="text-2xl font-bold">{stats.total}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-success/5 border-success/10">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase">Ativos</p>
+            <p className="text-2xl font-bold text-success">{stats.active}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-warning/5 border-warning/10">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase">Pendentes</p>
+            <p className="text-2xl font-bold text-warning">{stats.pending}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-destructive/5 border-destructive/10">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase">Vencendo</p>
+            <p className="text-2xl font-bold text-destructive">{stats.expiring}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-primary/10 bg-muted/30 backdrop-blur-sm">
         <CardContent className="py-4">
           <div className="flex flex-col sm:flex-row gap-3 items-center">
             <div className="relative flex-1 w-full">
@@ -110,9 +152,9 @@ export default function ContractsPage() {
                         dateDisplay = format(new Date(c.created_at), "dd/MM/yy");
                       }
                     } catch (e) {}
-                    const clientName = c.client_name || c.nome_cliente || "Sem nome";
-                    const clientCpf = c.client_cpf || c.cpf || c.cpf_cnpj || "";
-                    const contractType = c.contract_type || c.tipo_contrato || "";
+                    const clientName = c.clients?.full_name || "Sem nome";
+                    const clientCpf = c.client_cpf || "";
+                    const contractType = c.contract_type || "";
                     return (
                       <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/contracts/${c.id}`)}>
                         <TableCell className="font-medium">#{c.contract_number}</TableCell>
