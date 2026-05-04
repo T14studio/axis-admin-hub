@@ -68,16 +68,38 @@ export default function LeadsPage() {
   async function handleSave() {
     if (!form.name) { toast.error("Nome é obrigatório"); return; }
     setSaving(true);
-    if (editing) {
-      const { error } = await supabase.from("leads").update(form).eq("id", editing.id);
-      if (error) toast.error(error.message); else toast.success("Lead atualizado");
-    } else {
-      const { error } = await supabase.from("leads").insert(form);
-      if (error) toast.error(error.message); else toast.success("Lead criado");
+    
+    const payload = {
+      name: form.name.trim(),
+      phone: form.phone?.trim() || null,
+      email: form.email?.toLowerCase().trim() || null,
+      origin: form.origin?.trim() || null,
+      interest: form.interest?.trim() || null,
+      interest_type: form.interest_type?.trim() || null,
+      initial_message: form.initial_message?.trim() || null,
+      status: form.status || "novo",
+      responsible: form.responsible?.trim() || null,
+      notes: form.notes?.trim() || null
+    };
+
+    try {
+      if (editing) {
+        const { error } = await supabase.from("leads").update(payload).eq("id", editing.id);
+        if (error) throw error;
+        toast.success("Lead atualizado");
+      } else {
+        const { error } = await supabase.from("leads").insert(payload);
+        if (error) throw error;
+        toast.success("Lead criado");
+      }
+      setDialogOpen(false);
+      fetchLeads();
+    } catch (err: any) {
+      console.error("Erro ao salvar lead:", err);
+      toast.error(err.message || "Erro ao salvar o lead");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    fetchLeads();
   }
 
   const filtered = leads.filter((l) => {

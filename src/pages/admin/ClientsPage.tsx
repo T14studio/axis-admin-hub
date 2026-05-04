@@ -15,7 +15,7 @@ import type { Tables as DBTables, TablesInsert } from "@/integrations/supabase/t
 type Client = DBTables<"clients">;
 
 const emptyClient: TablesInsert<"clients"> = {
-  full_name: "", cpf: "", phone: "", email: "", address: "", client_type: "pessoa_fisica", notes: "",
+  full_name: "", cpf: "", phone: "", email: "", client_type: "pessoa_fisica",
 };
 
 export default function ClientsPage() {
@@ -31,7 +31,11 @@ export default function ClientsPage() {
 
   async function fetchClients() {
     setLoading(true);
-    const { data } = await supabase.from("clients").select("*").order("full_name");
+    // Explicitly list columns to avoid errors if schema cache is out of sync for address/notes
+    const { data } = await supabase
+      .from("clients")
+      .select("id, full_name, cpf, phone, email, client_type, created_at, updated_at")
+      .order("full_name");
     setClients(data || []);
     setLoading(false);
   }
@@ -40,8 +44,11 @@ export default function ClientsPage() {
   function openEdit(c: Client) {
     setEditing(c);
     setForm({
-      full_name: c.full_name, cpf: c.cpf, phone: c.phone || "", email: c.email || "",
-      address: c.address || "", client_type: c.client_type || "pessoa_fisica", notes: c.notes || "",
+      full_name: c.full_name, 
+      cpf: c.cpf, 
+      phone: c.phone || "", 
+      email: c.email || "",
+      client_type: c.client_type || "pessoa_fisica",
     });
     setDialogOpen(true);
   }
@@ -53,31 +60,48 @@ export default function ClientsPage() {
     
     setSaving(true);
     
-    // Quick check for duplicates (optimistic)
-    if (!editing) {
-      const { data: existing } = await supabase
-        .from("clients")
-        .select("id")
-        .or(`cpf.eq.${form.cpf.replace(/\D/g, "")},email.eq.${form.email.toLowerCase().trim()}`)
-        .maybeSingle();
-      
-      if (existing) {
-        toast.error("Já existe um cliente com este CPF ou E-mail.");
-        setSaving(false);
-        return;
+    const payload = {
+      full_name: form.full_name.trim(),
+      cpf: form.cpf.replace(/\D/g, ""),
+      email: form.email.toLowerCase().trim(),
+      phone: form.phone?.trim() || null,
+      client_type: form.client_type || "pessoa_fisica"
+    };
+    
+    try {
+      // Quick check for duplicates (optimistic)
+      if (!editing) {
+        const { data: existing } = await supabase
+          .from("clients")
+          .select("id")
+          .or(`cpf.eq.${payload.cpf},email.eq.${payload.email}`)
+          .maybeSingle();
+        
+        if (existing) {
+          toast.error("Já existe um cliente com este CPF ou E-mail.");
+          setSaving(false);
+          return;
+        }
       }
-    }
 
-    if (editing) {
-      const { error } = await supabase.from("clients").update(form).eq("id", editing.id);
-      if (error) toast.error(error.message); else toast.success("Cliente atualizado");
-    } else {
-      const { error } = await supabase.from("clients").insert(form);
-      if (error) toast.error(error.message); else toast.success("Cliente criado");
+      if (editing) {
+        const { error } = await supabase.from("clients").update(payload).eq("id", editing.id);
+        if (error) throw error;
+        toast.success("Cliente atualizado");
+      } else {
+        const { error } = await supabase.from("clients").insert(payload);
+        if (error) throw error;
+        toast.success("Cliente criado");
+      }
+      
+      setDialogOpen(false);
+      fetchClients();
+    } catch (err: any) {
+      console.error("Erro ao salvar cliente:", err);
+      toast.error(err.message || "Erro ao salvar o cliente");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    fetchClients();
   }
 
   const filtered = clients.filter((c) =>
@@ -152,8 +176,6 @@ export default function ClientsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-full space-y-2"><Label>Endereço</Label><Input value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-            <div className="col-span-full space-y-2"><Label>Observações</Label><Textarea value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
