@@ -15,7 +15,7 @@ import type { Tables as DBTables, TablesInsert } from "@/integrations/supabase/t
 type Client = DBTables<"clients">;
 
 const emptyClient: TablesInsert<"clients"> = {
-  full_name: "", cpf: "", phone: "", email: "", client_type: "pessoa_fisica",
+  full_name: "", cpf: "", phone: "", email: "", client_type: "pessoa_fisica", address: "", notes: "",
 };
 
 export default function ClientsPage() {
@@ -34,7 +34,7 @@ export default function ClientsPage() {
     // Explicitly list columns to avoid errors if schema cache is out of sync for address/notes
     const { data } = await supabase
       .from("clients")
-      .select("id, full_name, cpf, phone, email, client_type, created_at, updated_at")
+      .select("id, full_name, cpf, phone, email, client_type, address, notes, created_at, updated_at")
       .order("full_name");
     setClients(data || []);
     setLoading(false);
@@ -49,6 +49,8 @@ export default function ClientsPage() {
       phone: c.phone || "", 
       email: c.email || "",
       client_type: c.client_type || "pessoa_fisica",
+      address: c.address || "",
+      notes: c.notes || "",
     });
     setDialogOpen(true);
   }
@@ -65,7 +67,9 @@ export default function ClientsPage() {
       cpf: form.cpf.replace(/\D/g, ""),
       email: form.email.toLowerCase().trim(),
       phone: form.phone?.trim() || null,
-      client_type: form.client_type || "pessoa_fisica"
+      client_type: form.client_type || "pessoa_fisica",
+      address: form.address?.trim() || null,
+      notes: form.notes?.trim() || null
     };
     
     try {
@@ -176,6 +180,8 @@ export default function ClientsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="col-span-full space-y-2"><Label>Endereço</Label><Input value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+            <div className="col-span-full space-y-2"><Label>Observações</Label><Textarea value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>

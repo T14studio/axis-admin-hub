@@ -150,7 +150,7 @@ export default function ContractForm() {
               cpf: normalizedCpf,
               email: form.client_email.toLowerCase().trim(),
             })
-            .select()
+            .select("id")
             .single();
           
           if (clientErr) throw clientErr;
@@ -188,7 +188,7 @@ export default function ContractForm() {
             status: "ativo",
             published: false,
           })
-          .select()
+          .select("id")
           .single();
         
         if (propErr) {
@@ -219,7 +219,7 @@ export default function ContractForm() {
       let contractId = id;
 
       if (isNew) {
-        const { data, error } = await supabase.from("contracts").insert(payload).select().single();
+        const { data, error } = await supabase.from("contracts").insert(payload).select("id").single();
         if (error) throw error;
         contractId = data.id;
         toast.success("Contrato criado");
