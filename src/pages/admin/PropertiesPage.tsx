@@ -26,7 +26,14 @@ export default function PropertiesPage() {
 
   async function fetchProperties() {
     setLoading(true);
-    const { data } = await supabase.from("properties").select("id, title, reference_code, condition, price, neighborhood, status, is_published, publish_site, publish_whatsapp, created_at, property_type").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("properties")
+      .select("id, title, reference_code, condition, price, neighborhood, status, published, created_at, property_type")
+      .order("created_at", { ascending: false });
+    
+    if (error) {
+      console.error("Error fetching properties:", error);
+    }
     setProperties(data || []);
     setLoading(false);
   }
@@ -36,9 +43,9 @@ export default function PropertiesPage() {
       (p.reference_code || "").toLowerCase().includes(search.toLowerCase()) ||
       (p.neighborhood || "").toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || p.status === statusFilter || 
-      (statusFilter === "site" && (p as any).publish_site) ||
-      (statusFilter === "whatsapp" && (p as any).publish_whatsapp) ||
-      (statusFilter === "crm" && !(p as any).is_published);
+      (statusFilter === "site" && p.published) ||
+      (statusFilter === "whatsapp" && p.published) ||
+      (statusFilter === "crm" && !p.published);
     const matchType = typeFilter === "all" || p.property_type === typeFilter;
     return match && matchStatus && matchType;
   });
@@ -125,26 +132,17 @@ export default function PropertiesPage() {
                           {p.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <div className="flex flex-wrap gap-1 justify-center">
-                          {!(p as any).is_published ? (
-                            <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200 text-[10px]">CRM</Badge>
-                          ) : (
-                            <>
-                              {(p as any).publish_site && (
-                                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] flex items-center gap-1">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-600" /> Site
-                                </Badge>
-                              )}
-                              {(p as any).publish_whatsapp && (
-                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-[10px] flex items-center gap-1">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" /> WhatsApp
-                                </Badge>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {!p.published ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200 text-[10px]">CRM (Interno)</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600" /> Publicado
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                       <TableCell><Eye className="h-4 w-4 text-muted-foreground" /></TableCell>
                     </TableRow>
                   ))}
