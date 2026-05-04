@@ -162,11 +162,27 @@ export default function ContractForm() {
 
       // Create new property if needed
       if (isNewProperty && form.new_property_title) {
+        const refCode = form.new_property_ref?.trim() || null;
+
+        if (refCode) {
+          const { data: existingProp } = await supabase
+            .from("properties")
+            .select("id")
+            .eq("reference_code", refCode)
+            .maybeSingle();
+            
+          if (existingProp) {
+            toast.error(`O código de referência "${refCode}" já está em uso por outro imóvel.`);
+            setSaving(false);
+            return;
+          }
+        }
+
         const { data: newProp, error: propErr } = await supabase
           .from("properties")
           .insert({
             title: form.new_property_title,
-            reference_code: form.new_property_ref || null,
+            reference_code: refCode,
             neighborhood: form.new_property_neighborhood || null,
             city: form.new_property_city || null,
             status: "ativo",
@@ -175,7 +191,14 @@ export default function ContractForm() {
           .select()
           .single();
         
-        if (propErr) throw propErr;
+        if (propErr) {
+          if (propErr.message?.includes('properties_reference_code_key')) {
+            toast.error("O Código de Referência do imóvel já está em uso por outro imóvel.");
+            setSaving(false);
+            return;
+          }
+          throw propErr;
+        }
         propertyId = newProp.id;
       }
 
