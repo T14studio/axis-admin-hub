@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Loader2, FileText } from "lucide-react";
+import { Plus, Search, Loader2, FileText, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -57,6 +58,21 @@ export default function ContractsPage() {
       setContracts([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteContract(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    if (!window.confirm("Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.")) return;
+    
+    setLoading(true);
+    const { error } = await supabase.from("contracts").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir contrato.");
+      setLoading(false);
+    } else {
+      toast.success("Contrato excluído com sucesso.");
+      fetchContracts();
     }
   }
 
@@ -191,7 +207,14 @@ export default function ContractsPage() {
                         <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">
                           {dateDisplay}
                         </TableCell>
-                        <TableCell><FileText className="h-4 w-4 text-muted-foreground" /></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 justify-end">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={(e) => handleDeleteContract(e, c.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
