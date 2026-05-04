@@ -29,17 +29,35 @@ export default function ContractsPage() {
 
   async function fetchContracts() {
     setLoading(true);
-    const { data } = await supabase
-      .from("contracts")
-      .select(`
-        id, contract_number, client_id, client_cpf, contract_type, start_date, end_date, status, value, created_at,
-        clients (
-          full_name
-        )
-      `)
-      .order("created_at", { ascending: false });
-    setContracts(data || []);
-    setLoading(false);
+    try {
+      const { data: contractsData, error: contractsErr } = await supabase
+        .from("contracts")
+        .select("id, contract_number, client_id, client_cpf, contract_type, start_date, end_date, status, value, created_at")
+        .order("created_at", { ascending: false });
+
+      if (contractsErr) throw contractsErr;
+
+      const { data: clientsData } = await supabase
+        .from("clients")
+        .select("id, full_name");
+
+      const clientsMap = (clientsData || []).reduce((acc: any, c: any) => {
+        acc[c.id] = c;
+        return acc;
+      }, {});
+
+      const enrichedContracts = (contractsData || []).map((c: any) => ({
+        ...c,
+        clients: clientsMap[c.client_id] || null
+      }));
+
+      setContracts(enrichedContracts);
+    } catch (err) {
+      console.error("Erro ao buscar contratos:", err);
+      setContracts([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const filtered = contracts.filter((c) => {
