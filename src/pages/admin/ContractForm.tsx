@@ -41,6 +41,7 @@ export default function ContractForm() {
     client_cpf: "", 
     client_name: "", 
     client_email: "",
+    client_phone: "",
     property_id: "" as string | null,
     new_property_title: "",
     new_property_ref: "",
@@ -57,7 +58,7 @@ export default function ContractForm() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("clients").select("id, full_name, cpf, email").order("full_name"),
+      supabase.from("clients").select("id, full_name, cpf, email, phone").order("full_name"),
       supabase.from("properties").select("id, title, reference_code").order("title"),
     ]).then(([cRes, pRes]) => {
       setClients(cRes.data || []);
@@ -105,7 +106,8 @@ export default function ContractForm() {
       client_id: clientId, 
       client_cpf: client?.cpf || "",
       client_name: client?.full_name || "",
-      client_email: client?.email || ""
+      client_email: client?.email || "",
+      client_phone: client?.phone || ""
     }));
     setClientSearchOpen(false);
   }
@@ -149,6 +151,7 @@ export default function ContractForm() {
               full_name: form.client_name,
               cpf: normalizedCpf,
               email: form.client_email.toLowerCase().trim(),
+              phone: form.client_phone || null,
             })
             .select("id")
             .single();
@@ -359,7 +362,7 @@ export default function ContractForm() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Cliente / Proprietário</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => { setIsNewClient(!isNewClient); setForm({ ...form, client_id: "", client_name: "", client_cpf: "", client_email: "" }); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setIsNewClient(!isNewClient); setForm({ ...form, client_id: "", client_name: "", client_cpf: "", client_email: "", client_phone: "" }); }}>
                   {isNewClient ? "Voltar para busca" : "+ Novo Cliente"}
                 </Button>
               </div>
@@ -423,6 +426,7 @@ export default function ContractForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                   <div className="space-y-2 col-span-full"><Label>Nome Completo *</Label><Input placeholder="Nome do cliente" value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} /></div>
                   <div className="space-y-2"><Label>CPF *</Label><Input placeholder="000.000.000-00" value={form.client_cpf} onChange={(e) => setForm({ ...form, client_cpf: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>WhatsApp</Label><Input placeholder="(00) 00000-0000" value={form.client_phone} onChange={(e) => setForm({ ...form, client_phone: e.target.value })} /></div>
                   <div className="space-y-2"><Label>E-mail *</Label><Input type="email" placeholder="email@exemplo.com" value={form.client_email} onChange={(e) => setForm({ ...form, client_email: e.target.value })} /></div>
                 </div>
               )}
