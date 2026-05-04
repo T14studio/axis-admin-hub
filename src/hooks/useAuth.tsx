@@ -44,7 +44,7 @@ async function fetchAdminUser(userId: string): Promise<AdminUser | null> {
   try {
     const { data, error } = await supabase
       .from("admin_users")
-      .select("*")
+      .select("id, user_id, name, email, role, active, created_at, updated_at")
       .eq("user_id", userId)
       .maybeSingle();
     if (error) {

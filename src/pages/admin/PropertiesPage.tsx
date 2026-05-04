@@ -26,7 +26,7 @@ export default function PropertiesPage() {
 
   async function fetchProperties() {
     setLoading(true);
-    const { data } = await supabase.from("properties").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("properties").select("id, title, reference_code, condition, price, neighborhood, status, is_published, publish_site, publish_whatsapp, created_at, property_type").order("created_at", { ascending: false });
     setProperties(data || []);
     setLoading(false);
   }

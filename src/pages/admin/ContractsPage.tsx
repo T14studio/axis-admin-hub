@@ -32,7 +32,7 @@ export default function ContractsPage() {
     const { data } = await supabase
       .from("contracts")
       .select(`
-        *,
+        id, contract_number, client_id, client_cpf, contract_type, start_date, end_date, status, value, created_at,
         clients (
           full_name
         )

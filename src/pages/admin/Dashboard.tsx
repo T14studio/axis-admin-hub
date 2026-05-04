@@ -32,9 +32,9 @@ export default function Dashboard() {
 
   async function fetchData() {
     try {
-      const { data: leadsData } = await supabase.from("leads").select("*");
-      const { data: propsData } = await supabase.from("properties").select("*");
-      const { data: contractsData } = await supabase.from("contracts").select("*");
+      const { data: leadsData } = await supabase.from("leads").select("id, status, name, email, phone, created_at");
+      const { data: propsData } = await supabase.from("properties").select("id, status, published");
+      const { data: contractsData } = await supabase.from("contracts").select("id, status, end_date, contract_number");
 
       const leads = Array.isArray(leadsData) ? [...leadsData] : [];
       const props = Array.isArray(propsData) ? [...propsData] : [];

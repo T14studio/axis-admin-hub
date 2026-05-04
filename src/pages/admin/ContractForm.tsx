@@ -57,7 +57,7 @@ export default function ContractForm() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("clients").select("*").order("full_name"),
+      supabase.from("clients").select("id, full_name, cpf, email").order("full_name"),
       supabase.from("properties").select("id, title, reference_code").order("title"),
     ]).then(([cRes, pRes]) => {
       setClients(cRes.data || []);
@@ -69,8 +69,8 @@ export default function ContractForm() {
   async function fetchContract(cid: string) {
     setLoading(true);
     const [cRes, fRes] = await Promise.all([
-      supabase.from("contracts").select("*").eq("id", cid).single(),
-      supabase.from("contract_files").select("*").eq("contract_id", cid),
+      supabase.from("contracts").select("id, contract_number, client_id, client_cpf, property_id, contract_type, start_date, end_date, status, value, notes, pdf_url").eq("id", cid).single(),
+      supabase.from("contract_files").select("id, contract_id, file_name, file_url, created_at").eq("contract_id", cid),
     ]);
     if (cRes.data) {
       const d = cRes.data;
@@ -276,7 +276,7 @@ export default function ContractForm() {
         contract_id: id!, file_url: urlData.publicUrl, file_name: file.name,
       });
     }
-    const { data } = await supabase.from("contract_files").select("*").eq("contract_id", id!);
+    const { data } = await supabase.from("contract_files").select("id, contract_id, file_name, file_url, created_at").eq("contract_id", id!);
     setFiles(data || []);
     setUploading(false);
     toast.success("Arquivo(s) enviado(s)");

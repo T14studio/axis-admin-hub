@@ -38,7 +38,7 @@ export default function UsersPage() {
 
   async function fetchUsers() {
     setLoading(true);
-    const { data } = await supabase.from("admin_users").select("*").order("name");
+    const { data } = await supabase.from("admin_users").select("id, name, email, role, active, created_at, user_id").order("name");
     setUsers(data || []);
     setLoading(false);
   }

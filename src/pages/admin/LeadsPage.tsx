@@ -48,7 +48,7 @@ export default function LeadsPage() {
 
   async function fetchLeads() {
     setLoading(true);
-    const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("leads").select("id, name, email, phone, property_id, status, message, created_at").order("created_at", { ascending: false });
     setLeads(data || []);
     setLoading(false);
   }

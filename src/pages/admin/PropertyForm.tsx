@@ -56,14 +56,19 @@ export default function PropertyForm() {
   async function fetchProperty(propId: string) {
     setLoading(true);
     const [propRes, imgRes] = await Promise.all([
-      supabase.from("properties").select("*").eq("id", propId).single(),
-      supabase.from("property_images").select("*").eq("property_id", propId).order("display_order"),
+      supabase.from("properties").select("id, title, reference_code, purpose, property_type, price, condo_fee, iptu, neighborhood, city, state, address, built_area, total_area, features, observations, proximity, condition, highlight, expiration_date, is_reserved, broker_name, status, created_at, updated_at, published").eq("id", propId).single(),
+      supabase.from("property_images").select("id, image_url, display_order, is_main").eq("property_id", propId).order("display_order"),
     ]);
     if (propRes.data) {
       setForm({
         ...propRes.data,
         proximity: propRes.data.proximity || [],
         highlight: propRes.data.highlight || [],
+        // Ensure missing fields have defaults
+        ativo: (propRes.data as any).ativo ?? true,
+        is_published: (propRes.data as any).is_published ?? propRes.data.published ?? false,
+        publish_site: (propRes.data as any).publish_site ?? propRes.data.published ?? false,
+        publish_whatsapp: (propRes.data as any).publish_whatsapp ?? false,
       });
     }
     setImages(imgRes.data || []);
@@ -74,23 +79,37 @@ export default function PropertyForm() {
     if (!form.title) { toast.error("Título é obrigatório"); return; }
     setSaving(true);
     
-    // Clean up data for Supabase
-    const payload = { ...form };
-    delete payload.id;
-    delete payload.created_at;
-    delete payload.updated_at;
-
-    // Convert empty strings to null for database fields
-    Object.keys(payload).forEach(key => {
-      if (payload[key] === "") {
-        payload[key] = null;
-      }
-    });
-
-    delete payload.cep;
+    // Explicit payload to avoid sending obsolete or frontend-only fields
+    const payload = {
+      title: form.title,
+      reference_code: form.reference_code || null,
+      purpose: form.purpose,
+      property_type: form.property_type,
+      features: form.features || null,
+      price: form.price ? Number(form.price) : null,
+      condo_fee: form.condo_fee ? Number(form.condo_fee) : null,
+      iptu: form.iptu ? Number(form.iptu) : null,
+      neighborhood: form.neighborhood || null,
+      city: form.city || null,
+      state: form.state || null,
+      address: form.address || null,
+      built_area: form.built_area ? Number(form.built_area) : null,
+      total_area: form.total_area ? Number(form.total_area) : null,
+      observations: form.observations || null,
+      proximity: form.proximity || [],
+      condition: form.condition || "usado",
+      highlight: form.highlight || [],
+      expiration_date: form.expiration_date || null,
+      is_reserved: !!form.is_reserved,
+      broker_name: form.broker_name || null,
+      status: form.status || "ativo",
+      // These columns were added in migrations
+      published: !!form.is_published,
+      // We keep the internal flags for the frontend logic
+    };
 
     if (isNew) {
-      const { data, error } = await supabase.from("properties").insert(payload).select().single();
+      const { data, error } = await supabase.from("properties").insert(payload).select("id").single();
       if (error) { toast.error(error.message); setSaving(false); return; }
       toast.success("Imóvel criado com sucesso. Agora você pode adicionar imagens.");
       navigate(`/admin/properties/${data.id}`);
