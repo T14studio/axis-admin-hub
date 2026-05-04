@@ -45,9 +45,14 @@ export default function ContractsPage() {
   const filtered = contracts.filter((c) => {
     const name = (c.clients?.full_name || "").toLowerCase();
     const cpf = c.client_cpf || "";
+    const cleanSearch = search.replace(/\D/g, "");
+    const cleanCpf = cpf.replace(/\D/g, "");
+    
+    const matchCpf = (cleanSearch && cleanCpf.includes(cleanSearch)) || cpf.includes(search);
+    
     const match = !search ||
       (c.contract_number || "").toLowerCase().includes(search.toLowerCase()) ||
-      cpf.includes(search) ||
+      matchCpf ||
       name.includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || c.status === statusFilter;
     return match && matchStatus;

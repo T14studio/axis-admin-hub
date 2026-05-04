@@ -108,9 +108,14 @@ export default function ClientsPage() {
     }
   }
 
-  const filtered = clients.filter((c) =>
-    !search || c.full_name.toLowerCase().includes(search.toLowerCase()) || c.cpf.includes(search)
-  );
+  const filtered = clients.filter((c) => {
+    if (!search) return true;
+    const cleanSearch = search.replace(/\D/g, "");
+    const cleanCpf = c.cpf.replace(/\D/g, "");
+    const matchCpf = (cleanSearch && cleanCpf.includes(cleanSearch)) || c.cpf.includes(search);
+    
+    return c.full_name.toLowerCase().includes(search.toLowerCase()) || matchCpf;
+  });
 
   return (
     <div className="space-y-4 animate-fade-in">
