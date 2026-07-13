@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Deep Neutral Palette */
+    --background: 30 7% 8%;
+    --foreground: 36 24% 88%;
+
+    --card: 30 5% 10%;
+    --card-foreground: 36 24% 88%;
+
+    --popover: 30 5% 10%;
+    --popover-foreground: 36 24% 88%;
+
+    /* Premium Accents */
+    --primary: 39 57% 64%; /* Elegant Gold */
+    --primary-foreground: 30 7% 8%;
+
+    --secondary: 30 4% 12%; /* Surface 2 */
+    --secondary-foreground: 36 14% 68%;
+
+    --muted: 30 4% 15%;
+    --muted-foreground: 33 9% 50%;
+
+    --accent: 40 62% 77%; /* Champagne Gold */
+    --accent-foreground: 30 7% 8%;
+
+    /* Support Colors */
+    --destructive: 351 24% 54%;
+    --destructive-foreground: 36 24% 95%;
+
+    --success: 96 22% 51%;
+    --success-foreground: 36 24% 95%;
+
+    --warning: 26 38% 50%;
+    --warning-foreground: 36 24% 95%;
+
+    --border: 30 3% 22%;
+    --input: 30 3% 22%;
+    --ring: 39 57% 64%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar Refinement */
+    --sidebar-background: 30 7% 6%;
+    --sidebar-foreground: 33 9% 50%;
+    --sidebar-primary: 39 57% 64%;
+    --sidebar-primary-foreground: 30 7% 8%;
+    --sidebar-accent: 30 4% 10%;
+    --sidebar-accent-foreground: 36 24% 88%;
+    --sidebar-border: 30 3% 15%;
+    --sidebar-ring: 39 57% 64%;
+    --sidebar-muted: 30 3% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border selection:bg-primary/20 selection:text-primary;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  /* Scrollbar Refinement */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border/50 rounded-full hover:bg-border transition-colors;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-in-out;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
