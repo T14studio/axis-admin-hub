@@ -24,10 +24,23 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https://*.supabase.co", "blob:"],
-      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"]
+      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.hostingersite.com"]
     }
   }
 }));
+
+// ─── CORS — permite requisições de qualquer subdomínio hostingersite.com ──────
+// Necessário porque o Nginx pode redirecionar entre domínios alias (slatoblue.koa → slateblue-koala)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-property-id, x-display-order, x-is-main, x-file-name');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -37,6 +50,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
 
 // ─── Debug endpoint (confirma versão do código) ─────────────────────────────
 app.get('/api/debug', (req, res) => {
