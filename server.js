@@ -144,8 +144,16 @@ if (!fs.existsSync(distPath)) {
   console.log('Success: "dist" folder and "index.html" found.');
 }
 
-// Serve static files from 'dist'
-app.use(express.static(distPath));
+// Serve static files from 'dist' (desativa cache de HTML para forçar atualização dos JS)
+app.use(express.static(distPath, {
+  setHeaders: (res, filepath) => {
+    if (filepath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Health check for monitoring
 app.get('/health', (req, res) => res.status(200).send('OK'));
@@ -153,6 +161,9 @@ app.get('/health', (req, res) => res.status(200).send('OK'));
 // Catch-all route for SPA (Single Page Application)
 app.get('*', (req, res) => {
   if (fs.existsSync(indexPath)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(indexPath);
   } else {
     res.status(404).send('Error: dist/index.html not found. Check build logs.');
