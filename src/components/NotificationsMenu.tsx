@@ -41,7 +41,7 @@ export function NotificationsMenu() {
     // Pegar leads recentes como "notificações"
     const { data: leads } = await supabase
       .from("leads")
-      .select("id, name, created_at, status")
+      .select("id, name, created_at")
       .order("created_at", { ascending: false })
       .limit(5);
 
