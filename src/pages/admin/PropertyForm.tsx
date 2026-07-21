@@ -126,26 +126,37 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
+    // Ler os ArrayBuffers IMEDIATAMENTE, antes de qualquer reset ou await.
+    // Após e.target.value="" o browser invalida os objetos File (NotReadableError).
+    let fileBuffers: ArrayBuffer[];
+    try {
+      fileBuffers = await Promise.all(filesArray.map(f => f.arrayBuffer()));
+    } catch (readErr: any) {
+      toast.error("Não foi possível ler o arquivo. Tente selecionar novamente.");
+      return;
+    }
+
     setUploading(true);
     const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)... aguarde`);
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Reset do input APÓS capturar como Array
+    // Reset do input APÓS capturar os dados dos arquivos
     e.target.value = "";
+
 
     console.log("[Upload] Iniciando via proxy servidor. arquivos:", filesArray.length);
 
-    for (const file of filesArray) {
+    for (let i = 0; i < filesArray.length; i++) {
+      const file = filesArray[i];
+      const arrayBuffer = fileBuffers[i]; // já lido antes do reset do input
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
       const filePath = `${id}/${uniqueName}`;
 
       try {
         console.log("[Upload] Enviando para /api/upload-image:", { filePath, size: file.size });
-
-        const arrayBuffer = await file.arrayBuffer();
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -183,6 +194,7 @@ export default function PropertyForm() {
         lastErrorMsg = err?.name === "AbortError" ? "Timeout (25s): servidor demorou demais" : (err?.message || "Erro de conexão");
       }
     }
+
 
     if (successCount > 0) {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
