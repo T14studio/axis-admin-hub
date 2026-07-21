@@ -148,7 +148,10 @@ export default function PropertyForm() {
         // Upload direto para o Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from("property-images")
-          .upload(filePath, file, { upsert: false });
+          .upload(filePath, file, {
+            contentType: file.type || "image/jpeg",
+            upsert: false,
+          });
 
         if (uploadError) {
           console.error("[Storage] Erro no upload:", uploadError);
