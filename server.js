@@ -2,10 +2,14 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
+import multer from 'multer';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
+
+// Multer: armazena uploads em memória (sem gravar em disco)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,25 +75,28 @@ function httpsPost(urlStr, headers, bodyBuffer) {
   });
 }
 
-// ─── Upload Proxy ─────────────────────────────────────────────────────────────
+// ─── Upload Proxy (multipart/form-data via multer) ───────────────────────────
 app.post('/api/upload-image',
-  express.raw({ type: () => true, limit: '30mb' }),
+  upload.single('file'),  // multer parseia o multipart e expõe req.file
   async (req, res) => {
     res.setTimeout(25000, () => res.status(504).json({ error: 'Express timeout 25s' }));
     try {
-      const filePath   = (req.headers['x-file-path']   || '').trim();
-      const fileType   = (req.headers['x-file-type']   || 'image/jpeg').trim();
-      const propertyId = (req.headers['x-property-id'] || '').trim();
-      const displayOrder = parseInt(req.headers['x-display-order'] || '0', 10);
-      const isMain       = req.headers['x-is-main'] === 'true';
-
-      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.body?.length });
-
-      if (!filePath || !propertyId) {
-        return res.status(400).json({ error: 'filePath/propertyId ausentes' });
+      if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
+        return res.status(400).json({ error: 'Arquivo ausente ou vazio' });
       }
-      if (!req.body || req.body.length === 0) {
-        return res.status(400).json({ error: 'Arquivo vazio' });
+
+      const propertyId   = (req.body.propertyId  || '').trim();
+      const displayOrder = parseInt(req.body.displayOrder || '0', 10);
+      const isMain       = req.body.isMain === 'true';
+      const fileExt      = (req.file.originalname.split('.').pop() || 'jpg').toLowerCase();
+      const uniqueName   = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath     = `${propertyId}/${uniqueName}`;
+      const fileType     = req.file.mimetype || 'image/jpeg';
+
+      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.file.buffer.length });
+
+      if (!propertyId) {
+        return res.status(400).json({ error: 'propertyId ausente' });
       }
 
       // Usar defaults hardcoded caso env vars não estejam disponíveis no Hostinger
@@ -105,7 +112,7 @@ app.post('/api/upload-image',
         'apikey': SUPABASE_KEY,
         'Content-Type': fileType,
         'x-upsert': 'false',
-      }, req.body);
+      }, req.file.buffer);
 
       console.log('[Upload] Storage respondeu:', result.status, result.body.slice(0, 200));
 
@@ -128,7 +135,6 @@ app.post('/api/upload-image',
 
       if (dbError) {
         console.error('[Upload] Erro ao inserir no banco:', dbError.message);
-        // Arquivo já foi salvo no storage — retornamos o erro mas com publicUrl
         return res.status(500).json({ error: `DB: ${dbError.message}`, publicUrl });
       }
 

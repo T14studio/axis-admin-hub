@@ -121,20 +121,11 @@ export default function PropertyForm() {
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    // ⚠️ Converter FileList para Array ANTES de qualquer reset.
-    // e.target.files é "viva" — e.target.value="" apaga o FileList no browser.
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
-    // Ler os ArrayBuffers IMEDIATAMENTE, antes de qualquer reset ou await.
-    // Após e.target.value="" o browser invalida os objetos File (NotReadableError).
-    let fileBuffers: ArrayBuffer[];
-    try {
-      fileBuffers = await Promise.all(filesArray.map(f => f.arrayBuffer()));
-    } catch (readErr: any) {
-      toast.error("Não foi possível ler o arquivo. Tente selecionar novamente.");
-      return;
-    }
+    // Reset imediato — o servidor gera o filePath; não precisamos de arrayBuffer()
+    e.target.value = "";
 
     setUploading(true);
     const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)... aguarde`);
@@ -142,37 +133,28 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Reset do input APÓS capturar os dados dos arquivos
-    e.target.value = "";
-
-
-    console.log("[Upload] Iniciando via proxy servidor. arquivos:", filesArray.length);
+    console.log("[Upload] Iniciando via FormData + proxy servidor. arquivos:", filesArray.length);
 
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
-      const arrayBuffer = fileBuffers[i]; // já lido antes do reset do input
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-      const filePath = `${id}/${uniqueName}`;
 
       try {
-        console.log("[Upload] Enviando para /api/upload-image:", { filePath, size: file.size });
+        console.log("[Upload] Enviando:", { name: file.name, size: file.size, type: file.type });
+
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+        formData.append("propertyId", id);
+        formData.append("displayOrder", String(currentCount));
+        formData.append("isMain", currentCount === 0 ? "true" : "false");
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         const response = await fetch("/api/upload-image", {
           method: "POST",
           signal: controller.signal,
-          headers: {
-            "Content-Type": file.type || "image/jpeg",
-            "x-file-path": filePath,
-            "x-file-type": file.type || "image/jpeg",
-            "x-property-id": id,
-            "x-display-order": String(currentCount),
-            "x-is-main": currentCount === 0 ? "true" : "false",
-          },
-          body: arrayBuffer,
+          body: formData,
+          // Sem Content-Type — browser define automaticamente com boundary do multipart
         });
 
         clearTimeout(timeoutId);
@@ -187,14 +169,15 @@ export default function PropertyForm() {
 
         currentCount++;
         successCount++;
-        console.log("[Upload] Sucesso! publicUrl:", result.publicUrl);
+        console.log("[Upload] Sucesso!", result.publicUrl);
 
       } catch (err: any) {
         console.error("[Upload] Exceção:", err);
-        lastErrorMsg = err?.name === "AbortError" ? "Timeout (25s): servidor demorou demais" : (err?.message || "Erro de conexão");
+        lastErrorMsg = err?.name === "AbortError"
+          ? "Timeout (30s): servidor demorou demais"
+          : (err?.message || "Erro de conexão");
       }
     }
-
 
     if (successCount > 0) {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
@@ -204,6 +187,7 @@ export default function PropertyForm() {
     }
     setUploading(false);
   }
+
 
   async function handleRemoveImage(imgId: string, imageUrl: string) {
     if (!window.confirm("Deseja excluir esta imagem?")) return;
