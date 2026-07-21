@@ -122,8 +122,10 @@ export default function PropertyForm() {
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !id || id === "new") return;
+    // ⚠️ IMPORTANTE: converter FileList para Array ANTES de qualquer reset.
+    // e.target.files é uma referência "viva" — ao fazer e.target.value = "" o browser limpa o FileList.
+    const filesArray = Array.from(e.target.files || []);
+    if (filesArray.length === 0 || !id || id === "new") return;
 
     // Verificar sessão autenticada
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -133,27 +135,27 @@ export default function PropertyForm() {
     }
 
     setUploading(true);
-    const toastId = toast.loading(`Enviando ${files.length} imagem(ns)... aguarde`);
+    const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)... aguarde`);
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Reset do input para permitir re-upload do mesmo arquivo
+    // Reset do input APÓS capturar os arquivos como Array
     e.target.value = "";
 
     // Se a sessão usar o token mock do backdoor (sem formato JWT válido),
     // criar cliente completamente limpo (sem ler localStorage) para usar só a anon key.
     // Isso funciona porque as políticas de storage agora permitem TO public (inclui anon).
-    const isInvalidJWT = !session.access_token || !session.access_token.split(".").length || session.access_token === "mock-token";
+    const isInvalidJWT = !session.access_token || session.access_token === "mock-token" || !session.access_token.includes(".");
     const storageClient = isInvalidJWT
       ? createClient(SUPABASE_URL, SUPABASE_KEY, {
           auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
         })
       : supabase;
 
-    console.log("[Upload] isInvalidJWT:", isInvalidJWT, "token:", session.access_token?.slice(0, 20));
+    console.log("[Upload] isInvalidJWT:", isInvalidJWT, "token:", session.access_token?.slice(0, 20), "arquivos:", filesArray.length);
 
-    for (const file of Array.from(files)) {
+    for (const file of filesArray) {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
       const filePath = `${id}/${uniqueName}`;
