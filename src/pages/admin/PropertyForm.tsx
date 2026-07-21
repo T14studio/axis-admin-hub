@@ -124,70 +124,66 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
-    // Reset do input imediatamente — não precisa mais de arrayBuffer()
     e.target.value = "";
 
     setUploading(true);
-    const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)... aguarde`);
+    const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)...`);
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    console.log("[Upload] Iniciando via proxy servidor. arquivos:", filesArray.length);
-
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filePath = `${id}/${Date.now()}-${i}.${fileExt}`;
 
       try {
-        console.log("[Upload] Enviando:", { name: file.name, size: file.size, type: file.type });
+        console.log("[Upload] Direto Supabase Storage:", { filePath, size: file.size });
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const { error: upErr } = await supabase.storage
+          .from("property-images")
+          .upload(filePath, file, { contentType: file.type || "image/jpeg", upsert: false });
 
-        // Envia o File (Blob) diretamente como body — browser lê internamente sem arrayBuffer()
-        const response = await fetch("/api/upload-image", {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": file.type || "image/jpeg",
-            "x-property-id": id,
-            "x-display-order": String(currentCount),
-            "x-is-main": currentCount === 0 ? "true" : "false",
-            "x-file-name": file.name,
-          },
-          body: file,
-        });
-
-        clearTimeout(timeoutId);
-
-        const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-
-        if (!response.ok) {
-          console.error("[Upload] Erro do servidor:", result);
-          lastErrorMsg = result.error || `Erro ${response.status}`;
+        if (upErr) {
+          console.error("[Upload] Storage error:", upErr);
+          lastErrorMsg = upErr.message;
           continue;
         }
 
-        currentCount++;
-        successCount++;
-        console.log("[Upload] Sucesso!", result.publicUrl);
+        const { data: { publicUrl } } = supabase.storage
+          .from("property-images")
+          .getPublicUrl(filePath);
 
+        const { error: dbErr } = await supabase.from("property_images").insert({
+          property_id: id,
+          image_url: publicUrl,
+          display_order: currentCount,
+          is_main: currentCount === 0,
+        });
+
+        if (dbErr) {
+          console.error("[Upload] DB error:", dbErr);
+          lastErrorMsg = dbErr.message;
+        } else {
+          currentCount++;
+          successCount++;
+          console.log("[Upload] Sucesso:", publicUrl);
+        }
       } catch (err: any) {
         console.error("[Upload] Exceção:", err);
-        lastErrorMsg = err?.name === "AbortError"
-          ? "Timeout (30s): servidor demorou demais"
-          : (err?.message || "Erro de conexão");
+        lastErrorMsg = err?.message || "Erro inesperado";
       }
     }
 
     if (successCount > 0) {
-      toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
+      toast.success(`${successCount} imagem(ns) enviada(s)!`, { id: toastId });
       fetchProperty(id);
     } else {
-      toast.error(`Falha no upload: ${lastErrorMsg || "Erro desconhecido"}`, { id: toastId });
+      toast.error(`Falha: ${lastErrorMsg || "Erro desconhecido"}`, { id: toastId });
     }
     setUploading(false);
   }
+
 
 
 
