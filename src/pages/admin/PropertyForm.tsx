@@ -145,28 +145,20 @@ export default function PropertyForm() {
       const filePath = `${id}/${uniqueName}`;
 
       try {
-        // Envia o arquivo como binário via proxy server-side (sem base64, sem CORS)
-        const response = await fetch("/api/upload-image", {
-          method: "POST",
-          headers: {
-            "Content-Type": file.type,
-            "Authorization": `Bearer ${session.access_token}`,
-            "x-file-path": filePath,
-            "x-file-type": file.type,
-            "x-property-id": id,
-          },
-          body: file,
-        });
+        // Upload direto para o Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from("property-images")
+          .upload(filePath, file, { upsert: false });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          const errMsg = errData?.error || `Erro ${response.status}`;
-          console.error("[UploadProxy] Erro:", errMsg);
-          toast.error(`Erro ao subir "${file.name}": ${errMsg}`);
+        if (uploadError) {
+          console.error("[Storage] Erro no upload:", uploadError);
+          toast.error(`Erro ao subir "${file.name}": ${uploadError.message}`);
           continue;
         }
 
-        const { publicUrl } = await response.json();
+        const { data: { publicUrl } } = supabase.storage
+          .from("property-images")
+          .getPublicUrl(filePath);
 
         const { error: dbError } = await supabase.from("property_images").insert({
           property_id: id,
