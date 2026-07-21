@@ -124,7 +124,7 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
-    // Reset imediato — o servidor gera o filePath; não precisamos de arrayBuffer()
+    // Reset do input imediatamente — não precisa mais de arrayBuffer()
     e.target.value = "";
 
     setUploading(true);
@@ -133,7 +133,7 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
-    console.log("[Upload] Iniciando via FormData + proxy servidor. arquivos:", filesArray.length);
+    console.log("[Upload] Iniciando via proxy servidor. arquivos:", filesArray.length);
 
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
@@ -141,20 +141,21 @@ export default function PropertyForm() {
       try {
         console.log("[Upload] Enviando:", { name: file.name, size: file.size, type: file.type });
 
-        const formData = new FormData();
-        formData.append("file", file, file.name);
-        formData.append("propertyId", id);
-        formData.append("displayOrder", String(currentCount));
-        formData.append("isMain", currentCount === 0 ? "true" : "false");
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
+        // Envia o File (Blob) diretamente como body — browser lê internamente sem arrayBuffer()
         const response = await fetch("/api/upload-image", {
           method: "POST",
           signal: controller.signal,
-          body: formData,
-          // Sem Content-Type — browser define automaticamente com boundary do multipart
+          headers: {
+            "Content-Type": file.type || "image/jpeg",
+            "x-property-id": id,
+            "x-display-order": String(currentCount),
+            "x-is-main": currentCount === 0 ? "true" : "false",
+            "x-file-name": file.name,
+          },
+          body: file,
         });
 
         clearTimeout(timeoutId);
@@ -187,6 +188,7 @@ export default function PropertyForm() {
     }
     setUploading(false);
   }
+
 
 
   async function handleRemoveImage(imgId: string, imageUrl: string) {

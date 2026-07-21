@@ -2,14 +2,11 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
-import multer from 'multer';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
 
-// Multer: armazena uploads em memória (sem gravar em disco)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,28 +72,28 @@ function httpsPost(urlStr, headers, bodyBuffer) {
   });
 }
 
-// ─── Upload Proxy (multipart/form-data via multer) ───────────────────────────
+// ─── Upload Proxy (raw binary via express.raw) ────────────────────────────────────
 app.post('/api/upload-image',
-  upload.single('file'),  // multer parseia o multipart e expõe req.file
+  express.raw({ type: () => true, limit: '30mb' }),
   async (req, res) => {
     res.setTimeout(25000, () => res.status(504).json({ error: 'Express timeout 25s' }));
     try {
-      if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
-        return res.status(400).json({ error: 'Arquivo ausente ou vazio' });
-      }
-
-      const propertyId   = (req.body.propertyId  || '').trim();
-      const displayOrder = parseInt(req.body.displayOrder || '0', 10);
-      const isMain       = req.body.isMain === 'true';
-      const fileExt      = (req.file.originalname.split('.').pop() || 'jpg').toLowerCase();
-      const uniqueName   = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const propertyId   = (req.headers['x-property-id']    || '').trim();
+      const displayOrder = parseInt(req.headers['x-display-order'] || '0', 10);
+      const isMain       = req.headers['x-is-main'] === 'true';
+      const fileName     = (req.headers['x-file-name'] || 'image.jpg').trim();
+      const fileType     = (req.headers['content-type'] || 'image/jpeg').trim();
+      const fileExt      = (fileName.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const uniqueName   = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt || 'jpg'}`;
       const filePath     = `${propertyId}/${uniqueName}`;
-      const fileType     = req.file.mimetype || 'image/jpeg';
 
-      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.file.buffer.length });
+      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.body?.length });
 
       if (!propertyId) {
         return res.status(400).json({ error: 'propertyId ausente' });
+      }
+      if (!req.body || req.body.length === 0) {
+        return res.status(400).json({ error: 'Arquivo vazio' });
       }
 
       // Usar defaults hardcoded caso env vars não estejam disponíveis no Hostinger
@@ -110,9 +107,9 @@ app.post('/api/upload-image',
       const result = await httpsPost(uploadUrl, {
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'apikey': SUPABASE_KEY,
-        'Content-Type': fileType,
+        'Content-Type': fileType.split(';')[0].trim(), // remove boundary se vier de multipart
         'x-upsert': 'false',
-      }, req.file.buffer);
+      }, req.body);
 
       console.log('[Upload] Storage respondeu:', result.status, result.body.slice(0, 200));
 
