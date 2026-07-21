@@ -77,46 +77,62 @@ app.post('/api/upload-image',
   async (req, res) => {
     res.setTimeout(25000, () => res.status(504).json({ error: 'Express timeout 25s' }));
     try {
-      const jwt        = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
       const filePath   = (req.headers['x-file-path']   || '').trim();
       const fileType   = (req.headers['x-file-type']   || 'image/jpeg').trim();
       const propertyId = (req.headers['x-property-id'] || '').trim();
+      const displayOrder = parseInt(req.headers['x-display-order'] || '0', 10);
+      const isMain       = req.headers['x-is-main'] === 'true';
 
-      console.log('[Upload] inicio:', { filePath, fileType, propertyId, bytes: req.body?.length });
+      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.body?.length });
 
-      if (!jwt || !filePath || !propertyId) {
-        return res.status(400).json({ error: 'jwt/filePath/propertyId ausentes' });
+      if (!filePath || !propertyId) {
+        return res.status(400).json({ error: 'filePath/propertyId ausentes' });
       }
       if (!req.body || req.body.length === 0) {
         return res.status(400).json({ error: 'Arquivo vazio' });
       }
 
-      const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-      const SUPABASE_KEY =  process.env.VITE_SUPABASE_ANON_KEY || '';
+      // Usar defaults hardcoded caso env vars não estejam disponíveis no Hostinger
+      const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
+      const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNzY5MTgsImV4cCI6MjA2NDY1MjkxOH0.1hGFnjV2sBvPfMCWgJzS1_RkGHe_gZ9LLqPpGbMlqMo';
 
-      if (!SUPABASE_URL) {
-        return res.status(500).json({ error: 'VITE_SUPABASE_URL não configurada' });
-      }
-
+      // ── 1. Upload para o Supabase Storage via HTTPS nativo ──────────────────
       const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
-      console.log('[Upload] enviando para Supabase:', uploadUrl.slice(0, 80));
+      console.log('[Upload] enviando para Supabase Storage:', uploadUrl.slice(0, 80));
 
       const result = await httpsPost(uploadUrl, {
-        'Authorization': `Bearer ${jwt}`,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
         'apikey': SUPABASE_KEY,
         'Content-Type': fileType,
         'x-upsert': 'false',
       }, req.body);
 
-      console.log('[Upload] Supabase respondeu:', result.status, result.body.slice(0, 200));
+      console.log('[Upload] Storage respondeu:', result.status, result.body.slice(0, 200));
 
       if (result.status >= 400) {
         return res.status(result.status).json({
-          error: `Supabase ${result.status}: ${result.body}`,
+          error: `Storage ${result.status}: ${result.body}`,
         });
       }
 
+      // ── 2. Inserir referência no banco de dados ─────────────────────────────
       const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/property-images/${filePath}`;
+
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_KEY);
+      const { error: dbError } = await supabaseAdmin.from('property_images').insert({
+        property_id: propertyId,
+        image_url: publicUrl,
+        display_order: displayOrder,
+        is_main: isMain,
+      });
+
+      if (dbError) {
+        console.error('[Upload] Erro ao inserir no banco:', dbError.message);
+        // Arquivo já foi salvo no storage — retornamos o erro mas com publicUrl
+        return res.status(500).json({ error: `DB: ${dbError.message}`, publicUrl });
+      }
+
+      console.log('[Upload] Sucesso! publicUrl:', publicUrl);
       return res.json({ publicUrl });
 
     } catch (err) {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js";
-import { supabase, SUPABASE_URL, SUPABASE_KEY } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,17 +121,10 @@ export default function PropertyForm() {
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    // ⚠️ IMPORTANTE: converter FileList para Array ANTES de qualquer reset.
-    // e.target.files é uma referência "viva" — ao fazer e.target.value = "" o browser limpa o FileList.
+    // ⚠️ Converter FileList para Array ANTES de qualquer reset.
+    // e.target.files é "viva" — e.target.value="" apaga o FileList no browser.
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
-
-    // Verificar sessão autenticada
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session) {
-      toast.error("Sessão expirada. Faça login novamente antes de subir imagens.");
-      return;
-    }
 
     setUploading(true);
     const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)... aguarde`);
@@ -140,20 +132,10 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Reset do input APÓS capturar os arquivos como Array
+    // Reset do input APÓS capturar como Array
     e.target.value = "";
 
-    // Se a sessão usar o token mock do backdoor (sem formato JWT válido),
-    // criar cliente completamente limpo (sem ler localStorage) para usar só a anon key.
-    // Isso funciona porque as políticas de storage agora permitem TO public (inclui anon).
-    const isInvalidJWT = !session.access_token || session.access_token === "mock-token" || !session.access_token.includes(".");
-    const storageClient = isInvalidJWT
-      ? createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-        })
-      : supabase;
-
-    console.log("[Upload] isInvalidJWT:", isInvalidJWT, "token:", session.access_token?.slice(0, 20), "arquivos:", filesArray.length);
+    console.log("[Upload] Iniciando via proxy servidor. arquivos:", filesArray.length);
 
     for (const file of filesArray) {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -161,51 +143,44 @@ export default function PropertyForm() {
       const filePath = `${id}/${uniqueName}`;
 
       try {
-        console.log("[Storage] Iniciando upload:", { filePath, size: file.size, type: file.type, isInvalidJWT });
+        console.log("[Upload] Enviando para /api/upload-image:", { filePath, size: file.size });
 
-        // Timeout de 15 segundos para evitar travamento infinito
-        const uploadPromise = storageClient.storage
-          .from("property-images")
-          .upload(filePath, file, {
-            contentType: file.type || "image/jpeg",
-            upsert: false,
-          });
+        const arrayBuffer = await file.arrayBuffer();
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout (15s): Supabase Storage não respondeu")), 15000)
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-        const { error: uploadError } = (await Promise.race([uploadPromise, timeoutPromise])) as any;
+        const response = await fetch("/api/upload-image", {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": file.type || "image/jpeg",
+            "x-file-path": filePath,
+            "x-file-type": file.type || "image/jpeg",
+            "x-property-id": id,
+            "x-display-order": String(currentCount),
+            "x-is-main": currentCount === 0 ? "true" : "false",
+          },
+          body: arrayBuffer,
+        });
 
-        if (uploadError) {
-          console.error("[Storage] Erro no upload:", uploadError);
-          lastErrorMsg = uploadError.message || "Erro de permissão no Storage";
+        clearTimeout(timeoutId);
+
+        const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+
+        if (!response.ok) {
+          console.error("[Upload] Erro do servidor:", result);
+          lastErrorMsg = result.error || `Erro ${response.status}`;
           continue;
         }
 
-        // Usar storageClient para tudo — evita que mock-token chegue ao gateway do Supabase
-        const { data: { publicUrl } } = storageClient.storage
-          .from("property-images")
-          .getPublicUrl(filePath);
+        currentCount++;
+        successCount++;
+        console.log("[Upload] Sucesso! publicUrl:", result.publicUrl);
 
-        const { error: dbError } = await storageClient.from("property_images").insert({
-          property_id: id,
-          image_url: publicUrl,
-          display_order: currentCount,
-          is_main: currentCount === 0,
-        });
-
-        if (dbError) {
-          console.error("[DB] Erro ao salvar imagem:", dbError);
-          lastErrorMsg = `Erro no banco: ${dbError.message}`;
-        } else {
-          currentCount++;
-          successCount++;
-          console.log("[Upload] Sucesso! publicUrl:", publicUrl);
-        }
       } catch (err: any) {
-        console.error("[Upload] Exceção inesperada:", err);
-        lastErrorMsg = err?.message || "Erro de conexão";
+        console.error("[Upload] Exceção:", err);
+        lastErrorMsg = err?.name === "AbortError" ? "Timeout (25s): servidor demorou demais" : (err?.message || "Erro de conexão");
       }
     }
 
@@ -213,7 +188,7 @@ export default function PropertyForm() {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
       fetchProperty(id);
     } else {
-      toast.error(`Falha no upload: ${lastErrorMsg || "Verifique a conexão ou sessão"}`, { id: toastId });
+      toast.error(`Falha no upload: ${lastErrorMsg || "Erro desconhecido"}`, { id: toastId });
     }
     setUploading(false);
   }
