@@ -36,64 +36,62 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Parse JSON bodies (needed for upload proxy)
-app.use(express.json({ limit: '50mb' }));
+// ─── Upload Proxy (binário direto — sem base64) ───────────────────────────────
+// O browser envia o arquivo como bytes brutos via Content-Type do arquivo.
+// O servidor repassa ao Supabase Storage. Same-origin: sem CORS.
+app.post('/api/upload-image',
+  express.raw({ type: '*/*', limit: '30mb' }),
+  async (req, res) => {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Token ausente' });
+      }
+      const jwt = authHeader.slice(7);
 
-// ─── Upload Proxy ─────────────────────────────────────────────────────────────
-// Recebe o arquivo como base64 JSON do browser e faz upload direto ao Supabase
-// Evita qualquer problema de CORS no browser (same-origin request)
-app.post('/api/upload-image', async (req, res) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Token de autenticação ausente' });
-    }
-    const jwt = authHeader.slice(7);
+      const filePath   = req.headers['x-file-path'];
+      const fileType   = req.headers['x-file-type'] || 'image/jpeg';
+      const propertyId = req.headers['x-property-id'];
 
-    const { fileBase64, fileType, filePath, propertyId } = req.body;
-    if (!fileBase64 || !filePath || !propertyId) {
-      return res.status(400).json({ error: 'Parâmetros inválidos' });
-    }
+      if (!filePath || !propertyId || !req.body || req.body.length === 0) {
+        return res.status(400).json({ error: 'Parâmetros inválidos ou arquivo vazio' });
+      }
 
-    const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
-    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+      const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return res.status(500).json({ error: 'Configuração do servidor incompleta' });
-    }
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        return res.status(500).json({ error: 'Configuração do servidor incompleta' });
+      }
 
-    // Criar cliente Supabase com o JWT do usuário autenticado
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-      auth: { persistSession: false },
-    });
-
-    // Converter base64 para Buffer
-    const base64Data = fileBase64.replace(/^data:[^;]+;base64,/, '');
-    const fileBuffer = Buffer.from(base64Data, 'base64');
-
-    const { error: uploadError } = await supabase.storage
-      .from('property-images')
-      .upload(filePath, fileBuffer, {
-        contentType: fileType || 'image/jpeg',
-        upsert: false,
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+        auth: { persistSession: false },
       });
 
-    if (uploadError) {
-      console.error('[UploadProxy] Erro:', uploadError);
-      return res.status(500).json({ error: uploadError.message });
+      const { error: uploadError } = await supabase.storage
+        .from('property-images')
+        .upload(filePath, req.body, {
+          contentType: fileType,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('[UploadProxy] Erro Supabase:', uploadError.message);
+        return res.status(500).json({ error: uploadError.message });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('property-images')
+        .getPublicUrl(filePath);
+
+      return res.json({ publicUrl });
+    } catch (err) {
+      console.error('[UploadProxy] Exceção:', err);
+      return res.status(500).json({ error: err.message || 'Erro interno' });
     }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('property-images')
-      .getPublicUrl(filePath);
-
-    return res.json({ publicUrl });
-  } catch (err) {
-    console.error('[UploadProxy] Exceção:', err);
-    return res.status(500).json({ error: err.message || 'Erro interno' });
   }
-});
+);
 // ──────────────────────────────────────────────────────────────────────────────
 
 console.log('--- Hostinger Node.js Startup ---');

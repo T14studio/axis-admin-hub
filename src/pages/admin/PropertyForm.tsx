@@ -145,27 +145,17 @@ export default function PropertyForm() {
       const filePath = `${id}/${uniqueName}`;
 
       try {
-        // Converter arquivo para base64 e enviar via proxy do servidor
-        // (evita problemas de CORS do browser com Supabase Storage)
-        const fileBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
+        // Envia o arquivo como binário via proxy server-side (sem base64, sem CORS)
         const response = await fetch("/api/upload-image", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type": file.type,
             "Authorization": `Bearer ${session.access_token}`,
+            "x-file-path": filePath,
+            "x-file-type": file.type,
+            "x-property-id": id,
           },
-          body: JSON.stringify({
-            fileBase64,
-            fileType: file.type,
-            filePath,
-            propertyId: id,
-          }),
+          body: file,
         });
 
         if (!response.ok) {
