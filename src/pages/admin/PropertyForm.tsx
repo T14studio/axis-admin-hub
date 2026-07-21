@@ -141,9 +141,17 @@ export default function PropertyForm() {
     // Reset do input para permitir re-upload do mesmo arquivo
     e.target.value = "";
 
-    // Se a sessão usar o token mock do backdoor (sem formato JWT), usar cliente limpo para evitar erro 400 no Gateway
-    const isInvalidJWT = !session.access_token || !session.access_token.includes(".");
-    const storageClient = isInvalidJWT ? createClient(SUPABASE_URL, SUPABASE_KEY) : supabase;
+    // Se a sessão usar o token mock do backdoor (sem formato JWT válido),
+    // criar cliente completamente limpo (sem ler localStorage) para usar só a anon key.
+    // Isso funciona porque as políticas de storage agora permitem TO public (inclui anon).
+    const isInvalidJWT = !session.access_token || !session.access_token.split(".").length || session.access_token === "mock-token";
+    const storageClient = isInvalidJWT
+      ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        })
+      : supabase;
+
+    console.log("[Upload] isInvalidJWT:", isInvalidJWT, "token:", session.access_token?.slice(0, 20));
 
     for (const file of Array.from(files)) {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
