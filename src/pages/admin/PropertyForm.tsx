@@ -135,6 +135,7 @@ export default function PropertyForm() {
     const toastId = toast.loading(`Enviando ${files.length} imagem(ns)... aguarde`);
     let currentCount = images.length;
     let successCount = 0;
+    let lastErrorMsg = "";
 
     // Reset do input para permitir re-upload do mesmo arquivo
     e.target.value = "";
@@ -145,17 +146,25 @@ export default function PropertyForm() {
       const filePath = `${id}/${uniqueName}`;
 
       try {
-        // Upload direto para o Supabase Storage
-        const { error: uploadError } = await supabase.storage
+        console.log("[Storage] Iniciando upload:", { filePath, size: file.size, type: file.type });
+
+        // Timeout de 15 segundos para evitar travamento infinito
+        const uploadPromise = supabase.storage
           .from("property-images")
           .upload(filePath, file, {
             contentType: file.type || "image/jpeg",
             upsert: false,
           });
 
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout (15s): Supabase Storage não respondeu")), 15000)
+        );
+
+        const { error: uploadError } = (await Promise.race([uploadPromise, timeoutPromise])) as any;
+
         if (uploadError) {
           console.error("[Storage] Erro no upload:", uploadError);
-          toast.error(`Erro ao subir "${file.name}": ${uploadError.message}`);
+          lastErrorMsg = uploadError.message || "Erro de permissão no Storage";
           continue;
         }
 
@@ -172,14 +181,14 @@ export default function PropertyForm() {
 
         if (dbError) {
           console.error("[DB] Erro ao salvar imagem:", dbError);
-          toast.error(`Erro ao salvar "${file.name}" no banco: ${dbError.message}`);
+          lastErrorMsg = `Erro no banco: ${dbError.message}`;
         } else {
           currentCount++;
           successCount++;
         }
       } catch (err: any) {
         console.error("[Upload] Exceção inesperada:", err);
-        toast.error(`Falha ao subir "${file.name}": ${err?.message || "verifique a conexão"}`);
+        lastErrorMsg = err?.message || "Erro de conexão";
       }
     }
 
@@ -187,7 +196,7 @@ export default function PropertyForm() {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
       fetchProperty(id);
     } else {
-      toast.dismiss(toastId);
+      toast.error(`Falha no upload: ${lastErrorMsg || "Verifique a conexão ou sessão"}`, { id: toastId });
     }
     setUploading(false);
   }
