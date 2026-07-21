@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,66 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
+// Parse JSON bodies (needed for upload proxy)
+app.use(express.json({ limit: '50mb' }));
+
+// ─── Upload Proxy ─────────────────────────────────────────────────────────────
+// Recebe o arquivo como base64 JSON do browser e faz upload direto ao Supabase
+// Evita qualquer problema de CORS no browser (same-origin request)
+app.post('/api/upload-image', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token de autenticação ausente' });
+    }
+    const jwt = authHeader.slice(7);
+
+    const { fileBase64, fileType, filePath, propertyId } = req.body;
+    if (!fileBase64 || !filePath || !propertyId) {
+      return res.status(400).json({ error: 'Parâmetros inválidos' });
+    }
+
+    const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      return res.status(500).json({ error: 'Configuração do servidor incompleta' });
+    }
+
+    // Criar cliente Supabase com o JWT do usuário autenticado
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false },
+    });
+
+    // Converter base64 para Buffer
+    const base64Data = fileBase64.replace(/^data:[^;]+;base64,/, '');
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+
+    const { error: uploadError } = await supabase.storage
+      .from('property-images')
+      .upload(filePath, fileBuffer, {
+        contentType: fileType || 'image/jpeg',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('[UploadProxy] Erro:', uploadError);
+      return res.status(500).json({ error: uploadError.message });
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('property-images')
+      .getPublicUrl(filePath);
+
+    return res.json({ publicUrl });
+  } catch (err) {
+    console.error('[UploadProxy] Exceção:', err);
+    return res.status(500).json({ error: err.message || 'Erro interno' });
+  }
+});
+// ──────────────────────────────────────────────────────────────────────────────
 
 console.log('--- Hostinger Node.js Startup ---');
 console.log('Timestamp:', new Date().toISOString());

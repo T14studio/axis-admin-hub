@@ -124,53 +124,110 @@ export default function PropertyForm() {
     const files = e.target.files;
     if (!files || files.length === 0 || !id || id === "new") return;
 
-    setUploading(true);
-    const toastId = toast.loading("Enviando imagens... aguarde");
-    let currentCount = images.length;
-    for (const file of Array.from(files)) {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${id}/${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("property-images")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        toast.error(`Erro ao subir imagem ${file.name}: ${uploadError.message}`);
-        continue;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("property-images")
-        .getPublicUrl(filePath);
-
-      const { error: dbError } = await supabase.from("property_images").insert({
-        property_id: id,
-        image_url: publicUrl,
-        display_order: currentCount,
-        is_main: currentCount === 0, // Primeira imagem vira capa automaticamente
-      });
-
-      if (dbError) toast.error(dbError.message);
-      else currentCount++;
+    // Verificar sessão autenticada
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      toast.error("Sessão expirada. Faça login novamente antes de subir imagens.");
+      return;
     }
-    
-    toast.success(`${Array.from(files).length} imagens enviadas com sucesso!`, { id: toastId });
-    
-    fetchProperty(id);
+
+    setUploading(true);
+    const toastId = toast.loading(`Enviando ${files.length} imagem(ns)... aguarde`);
+    let currentCount = images.length;
+    let successCount = 0;
+
+    // Reset do input para permitir re-upload do mesmo arquivo
+    e.target.value = "";
+
+    for (const file of Array.from(files)) {
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `${id}/${uniqueName}`;
+
+      try {
+        // Converter arquivo para base64 e enviar via proxy do servidor
+        // (evita problemas de CORS do browser com Supabase Storage)
+        const fileBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const response = await fetch("/api/upload-image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            fileBase64,
+            fileType: file.type,
+            filePath,
+            propertyId: id,
+          }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          const errMsg = errData?.error || `Erro ${response.status}`;
+          console.error("[UploadProxy] Erro:", errMsg);
+          toast.error(`Erro ao subir "${file.name}": ${errMsg}`);
+          continue;
+        }
+
+        const { publicUrl } = await response.json();
+
+        const { error: dbError } = await supabase.from("property_images").insert({
+          property_id: id,
+          image_url: publicUrl,
+          display_order: currentCount,
+          is_main: currentCount === 0,
+        });
+
+        if (dbError) {
+          console.error("[DB] Erro ao salvar imagem:", dbError);
+          toast.error(`Erro ao salvar "${file.name}" no banco: ${dbError.message}`);
+        } else {
+          currentCount++;
+          successCount++;
+        }
+      } catch (err: any) {
+        console.error("[Upload] Exceção inesperada:", err);
+        toast.error(`Falha ao subir "${file.name}": ${err?.message || "verifique a conexão"}`);
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
+      fetchProperty(id);
+    } else {
+      toast.dismiss(toastId);
+    }
     setUploading(false);
   }
 
   async function handleRemoveImage(imgId: string, imageUrl: string) {
     if (!window.confirm("Deseja excluir esta imagem?")) return;
-    
-    // Extrair o path do Storage da URL pública
-    const path = imageUrl.split("/").slice(-2).join("/"); // Formato id/filename.ext
-    
-    await supabase.storage.from("property-images").remove([path]);
+
+    // Extrair o path do Storage da URL pública corretamente
+    // URL format: https://<project>.supabase.co/storage/v1/object/public/property-images/<id>/<filename>
+    const storagePrefix = "/property-images/";
+    const prefixIndex = imageUrl.indexOf(storagePrefix);
+    const storagePath = prefixIndex !== -1
+      ? imageUrl.slice(prefixIndex + storagePrefix.length)
+      : imageUrl.split("/").slice(-2).join("/");
+
+    const { error: storageError } = await supabase.storage
+      .from("property-images")
+      .remove([storagePath]);
+
+    if (storageError) {
+      console.warn("[Storage] Aviso ao remover arquivo:", storageError.message);
+    }
+
     const { error } = await supabase.from("property_images").delete().eq("id", imgId);
-    
+
     if (error) toast.error(error.message);
     else {
       toast.success("Imagem removida");
