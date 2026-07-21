@@ -181,11 +181,12 @@ export default function PropertyForm() {
           continue;
         }
 
-        const { data: { publicUrl } } = supabase.storage
+        // Usar storageClient para tudo — evita que mock-token chegue ao gateway do Supabase
+        const { data: { publicUrl } } = storageClient.storage
           .from("property-images")
           .getPublicUrl(filePath);
 
-        const { error: dbError } = await supabase.from("property_images").insert({
+        const { error: dbError } = await storageClient.from("property_images").insert({
           property_id: id,
           image_url: publicUrl,
           display_order: currentCount,
@@ -198,6 +199,7 @@ export default function PropertyForm() {
         } else {
           currentCount++;
           successCount++;
+          console.log("[Upload] Sucesso! publicUrl:", publicUrl);
         }
       } catch (err: any) {
         console.error("[Upload] Exceção inesperada:", err);
