@@ -36,59 +36,77 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ─── Upload Proxy (binário direto — sem base64) ───────────────────────────────
-// O browser envia o arquivo como bytes brutos via Content-Type do arquivo.
-// O servidor repassa ao Supabase Storage. Same-origin: sem CORS.
+// ─── Upload Proxy (fetch direto REST Supabase + timeout 20s) ─────────────────
 app.post('/api/upload-image',
-  express.raw({ type: '*/*', limit: '30mb' }),
+  express.raw({ type: () => true, limit: '30mb' }),
   async (req, res) => {
+    // Timeout de resposta do Express: 25 segundos
+    res.setTimeout(25000, () => {
+      res.status(504).json({ error: 'Timeout: upload demorou mais de 25s' });
+    });
+
     try {
-      const authHeader = req.headers['authorization'];
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Token ausente' });
+      const jwt        = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+      const filePath   = (req.headers['x-file-path']   || '').trim();
+      const fileType   = (req.headers['x-file-type']   || 'image/jpeg').trim();
+      const propertyId = (req.headers['x-property-id'] || '').trim();
+
+      console.log('[UploadProxy] iniciando:', { filePath, fileType, propertyId, bodyLen: req.body?.length });
+
+      if (!jwt || !filePath || !propertyId) {
+        return res.status(400).json({ error: 'Parâmetros ausentes (jwt/filePath/propertyId)' });
       }
-      const jwt = authHeader.slice(7);
-
-      const filePath   = req.headers['x-file-path'];
-      const fileType   = req.headers['x-file-type'] || 'image/jpeg';
-      const propertyId = req.headers['x-property-id'];
-
-      if (!filePath || !propertyId || !req.body || req.body.length === 0) {
-        return res.status(400).json({ error: 'Parâmetros inválidos ou arquivo vazio' });
-      }
-
-      const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
-      const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!SUPABASE_URL || !SUPABASE_KEY) {
-        return res.status(500).json({ error: 'Configuração do servidor incompleta' });
+      if (!req.body || req.body.length === 0) {
+        return res.status(400).json({ error: 'Arquivo vazio' });
       }
 
-      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-        global: { headers: { Authorization: `Bearer ${jwt}` } },
-        auth: { persistSession: false },
+      const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+      const SUPABASE_KEY =  process.env.VITE_SUPABASE_ANON_KEY || '';
+
+      if (!SUPABASE_URL) {
+        return res.status(500).json({ error: 'VITE_SUPABASE_URL não configurada no servidor' });
+      }
+
+      // AbortController com timeout de 20 segundos
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
+      console.log('[UploadProxy] enviando para:', uploadUrl);
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': fileType,
+          'x-upsert': 'false',
+        },
+        body: req.body,
+        signal: controller.signal,
       });
 
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, req.body, {
-          contentType: fileType,
-          upsert: false,
-        });
+      clearTimeout(timer);
 
-      if (uploadError) {
-        console.error('[UploadProxy] Erro Supabase:', uploadError.message);
-        return res.status(500).json({ error: uploadError.message });
+      const responseText = await uploadRes.text();
+      console.log('[UploadProxy] resposta Supabase:', uploadRes.status, responseText.slice(0, 200));
+
+      if (!uploadRes.ok) {
+        return res.status(uploadRes.status).json({
+          error: `Supabase Storage retornou ${uploadRes.status}: ${responseText}`,
+        });
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
-
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/property-images/${filePath}`;
       return res.json({ publicUrl });
+
     } catch (err) {
-      console.error('[UploadProxy] Exceção:', err);
-      return res.status(500).json({ error: err.message || 'Erro interno' });
+      if (err.name === 'AbortError') {
+        console.error('[UploadProxy] Timeout de 20s atingido');
+        return res.status(504).json({ error: 'Upload timeout: Supabase não respondeu em 20s' });
+      }
+      console.error('[UploadProxy] Exceção:', err.message);
+      return res.status(500).json({ error: err.message || 'Erro interno no servidor' });
     }
   }
 );
