@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -36,25 +37,55 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ─── Upload Proxy (fetch direto REST Supabase + timeout 20s) ─────────────────
+// ─── Debug endpoint (confirma versão do código) ─────────────────────────────
+app.get('/api/debug', (req, res) => {
+  res.json({
+    ok: true,
+    version: 'v5-https-module',
+    node: process.version,
+    supabaseUrl: (process.env.VITE_SUPABASE_URL || 'NAO_DEFINIDA').slice(0, 40),
+    time: new Date().toISOString(),
+  });
+});
+
+// ─── Helper: upload via https nativo (funciona em qualquer versão Node.js) ─────
+function httpsPost(urlStr, headers, bodyBuffer) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlStr);
+    const options = {
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname + u.search,
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': bodyBuffer.length },
+    };
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString() }));
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => { req.destroy(new Error('Timeout 20s')); });
+    req.write(bodyBuffer);
+    req.end();
+  });
+}
+
+// ─── Upload Proxy ─────────────────────────────────────────────────────────────
 app.post('/api/upload-image',
   express.raw({ type: () => true, limit: '30mb' }),
   async (req, res) => {
-    // Timeout de resposta do Express: 25 segundos
-    res.setTimeout(25000, () => {
-      res.status(504).json({ error: 'Timeout: upload demorou mais de 25s' });
-    });
-
+    res.setTimeout(25000, () => res.status(504).json({ error: 'Express timeout 25s' }));
     try {
       const jwt        = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
       const filePath   = (req.headers['x-file-path']   || '').trim();
       const fileType   = (req.headers['x-file-type']   || 'image/jpeg').trim();
       const propertyId = (req.headers['x-property-id'] || '').trim();
 
-      console.log('[UploadProxy] iniciando:', { filePath, fileType, propertyId, bodyLen: req.body?.length });
+      console.log('[Upload] inicio:', { filePath, fileType, propertyId, bytes: req.body?.length });
 
       if (!jwt || !filePath || !propertyId) {
-        return res.status(400).json({ error: 'Parâmetros ausentes (jwt/filePath/propertyId)' });
+        return res.status(400).json({ error: 'jwt/filePath/propertyId ausentes' });
       }
       if (!req.body || req.body.length === 0) {
         return res.status(400).json({ error: 'Arquivo vazio' });
@@ -64,36 +95,24 @@ app.post('/api/upload-image',
       const SUPABASE_KEY =  process.env.VITE_SUPABASE_ANON_KEY || '';
 
       if (!SUPABASE_URL) {
-        return res.status(500).json({ error: 'VITE_SUPABASE_URL não configurada no servidor' });
+        return res.status(500).json({ error: 'VITE_SUPABASE_URL não configurada' });
       }
 
-      // AbortController com timeout de 20 segundos
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 20000);
-
       const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
-      console.log('[UploadProxy] enviando para:', uploadUrl);
+      console.log('[Upload] enviando para Supabase:', uploadUrl.slice(0, 80));
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-          'apikey': SUPABASE_KEY,
-          'Content-Type': fileType,
-          'x-upsert': 'false',
-        },
-        body: req.body,
-        signal: controller.signal,
-      });
+      const result = await httpsPost(uploadUrl, {
+        'Authorization': `Bearer ${jwt}`,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': fileType,
+        'x-upsert': 'false',
+      }, req.body);
 
-      clearTimeout(timer);
+      console.log('[Upload] Supabase respondeu:', result.status, result.body.slice(0, 200));
 
-      const responseText = await uploadRes.text();
-      console.log('[UploadProxy] resposta Supabase:', uploadRes.status, responseText.slice(0, 200));
-
-      if (!uploadRes.ok) {
-        return res.status(uploadRes.status).json({
-          error: `Supabase Storage retornou ${uploadRes.status}: ${responseText}`,
+      if (result.status >= 400) {
+        return res.status(result.status).json({
+          error: `Supabase ${result.status}: ${result.body}`,
         });
       }
 
@@ -101,12 +120,8 @@ app.post('/api/upload-image',
       return res.json({ publicUrl });
 
     } catch (err) {
-      if (err.name === 'AbortError') {
-        console.error('[UploadProxy] Timeout de 20s atingido');
-        return res.status(504).json({ error: 'Upload timeout: Supabase não respondeu em 20s' });
-      }
-      console.error('[UploadProxy] Exceção:', err.message);
-      return res.status(500).json({ error: err.message || 'Erro interno no servidor' });
+      console.error('[Upload] Erro:', err.message);
+      return res.status(500).json({ error: err.message || 'Erro interno' });
     }
   }
 );
