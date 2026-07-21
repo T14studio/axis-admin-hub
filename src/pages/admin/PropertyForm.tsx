@@ -225,6 +225,48 @@ export default function PropertyForm() {
     }
   }
 
+  async function handleGeolocation() {
+    if (!navigator.geolocation) {
+      toast.error("Geolocalização não suportada pelo navegador.");
+      return;
+    }
+
+    const toastId = toast.loading("Buscando localização...");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
+          if (!res.ok) throw new Error("Erro na API");
+          const data = await res.json();
+          if (data && data.address) {
+            setForm((prev: any) => ({
+              ...prev,
+              city: data.address.city || data.address.town || data.address.village || prev.city,
+              state: data.address.state || prev.state,
+              neighborhood: data.address.suburb || data.address.neighbourhood || prev.neighborhood,
+              address: data.address.road ? `${data.address.road}${data.address.house_number ? `, ${data.address.house_number}` : ''}` : prev.address
+            }));
+            toast.success("Endereço preenchido via localização!", { id: toastId });
+          } else {
+            toast.error("Não foi possível determinar o endereço.", { id: toastId });
+          }
+        } catch (error) {
+          console.error("Erro no reverse geocoding:", error);
+          toast.error("Erro ao buscar endereço.", { id: toastId });
+        }
+      },
+      (error) => {
+        let msg = "Erro ao buscar localização.";
+        if (error.code === error.PERMISSION_DENIED) msg = "Permissão de localização negada.";
+        else if (error.code === error.POSITION_UNAVAILABLE) msg = "Localização indisponível.";
+        else if (error.code === error.TIMEOUT) msg = "Tempo esgotado ao buscar localização.";
+        toast.error(msg, { id: toastId });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }
+
   const set = (k: string, v: any) => {
     setForm((p: any) => {
       const newState = { ...p, [k]: v };
@@ -359,7 +401,7 @@ export default function PropertyForm() {
                 <Label>Endereço</Label>
                 <div className="flex gap-2">
                   <Input value={form.address || ""} onChange={(e) => set("address", e.target.value)} className="flex-1" />
-                  <Button variant="secondary" className="bg-cyan-500 hover:bg-cyan-600 text-white shrink-0">
+                  <Button onClick={handleGeolocation} variant="secondary" className="bg-cyan-500 hover:bg-cyan-600 text-white shrink-0" type="button">
                     <MapPin className="h-4 w-4 mr-2" /> Posicionar no mapa
                   </Button>
                 </div>
