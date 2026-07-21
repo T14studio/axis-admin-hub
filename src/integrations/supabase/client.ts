@@ -14,13 +14,13 @@ const DEFAULT_SUPABASE_URL = "https://kubfzjfjvovbdlqchhgh.supabase.co";
 const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc";
 
 // URL sanitization to remove trailing slashes and spaces
-let SUPABASE_URL = getEnvVar(['VITE_SUPABASE_URL']) || DEFAULT_SUPABASE_URL;
+export let SUPABASE_URL = getEnvVar(['VITE_SUPABASE_URL']) || DEFAULT_SUPABASE_URL;
 if (SUPABASE_URL.endsWith('/')) {
   SUPABASE_URL = SUPABASE_URL.slice(0, -1);
 }
 
 // Checking keys with fallback to production default
-const SUPABASE_KEY = getEnvVar(['VITE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_PUBLISHABLE_KEY']) || DEFAULT_SUPABASE_KEY;
+export const SUPABASE_KEY = getEnvVar(['VITE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_PUBLISHABLE_KEY']) || DEFAULT_SUPABASE_KEY;
 
 console.log('[Supabase Client] Connected to:', SUPABASE_URL);
 

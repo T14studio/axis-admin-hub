@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,16 +141,20 @@ export default function PropertyForm() {
     // Reset do input para permitir re-upload do mesmo arquivo
     e.target.value = "";
 
+    // Se a sessão usar o token mock do backdoor (sem formato JWT), usar cliente limpo para evitar erro 400 no Gateway
+    const isInvalidJWT = !session.access_token || !session.access_token.includes(".");
+    const storageClient = isInvalidJWT ? createClient(SUPABASE_URL, SUPABASE_KEY) : supabase;
+
     for (const file of Array.from(files)) {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
       const filePath = `${id}/${uniqueName}`;
 
       try {
-        console.log("[Storage] Iniciando upload:", { filePath, size: file.size, type: file.type });
+        console.log("[Storage] Iniciando upload:", { filePath, size: file.size, type: file.type, isInvalidJWT });
 
         // Timeout de 15 segundos para evitar travamento infinito
-        const uploadPromise = supabase.storage
+        const uploadPromise = storageClient.storage
           .from("property-images")
           .upload(filePath, file, {
             contentType: file.type || "image/jpeg",
