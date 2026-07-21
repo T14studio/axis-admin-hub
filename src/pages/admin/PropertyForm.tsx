@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +24,8 @@ const PROXIMITY_ITEMS = [
   "Centro Comercial", "Ciclovia", "Clube", "Conveniência", "Correio", "Delegacia",
   "Escola Estadual", "Escola Municipal", "Escola Particular", "Faculdade", "Farmácia", "Feira",
   "Hospital", "Igreja", "Lotérica", "Mercado", "Padaria", "Parque",
-  "Pista de Caminhada", "Posto Policial", "Postos de Saúde", "Praça", "Shopping", "Supermercado",
-  "Teatro", "Terminal Rodoviário", "Universidade"
+  "Pista de Caminhada", "Ponto de Ônibus", "Posto de Combustível", "Praça", "Praia",
+  "Restaurante", "Shopping", "Supermercado", "Trem", "Metrô"
 ];
 
 export default function PropertyForm() {
@@ -132,15 +133,28 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
+    // Obter sessão atual para verificar se o token é válido
+    const { data: { session } } = await supabase.auth.getSession();
+    const isMock = !session?.access_token || session.access_token === "mock-token" || !session.access_token.includes(".");
+
+    // Se o token for mock/inválido, usar cliente limpo sem localStorage para não enviar mock-token ao Supabase
+    const targetClient = isMock
+      ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        })
+      : supabase;
+
+    console.log("[Upload] Iniciando upload direto Supabase (isMock:", isMock, ") arquivos:", filesArray.length);
+
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const filePath = `${id}/${Date.now()}-${i}.${fileExt}`;
 
       try {
-        console.log("[Upload] Direto Supabase Storage:", { filePath, size: file.size });
+        console.log("[Upload] Direto Supabase Storage:", { filePath, size: file.size, isMock });
 
-        const { error: upErr } = await supabase.storage
+        const { error: upErr } = await targetClient.storage
           .from("property-images")
           .upload(filePath, file, { contentType: file.type || "image/jpeg", upsert: false });
 
@@ -150,11 +164,11 @@ export default function PropertyForm() {
           continue;
         }
 
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = targetClient.storage
           .from("property-images")
           .getPublicUrl(filePath);
 
-        const { error: dbErr } = await supabase.from("property_images").insert({
+        const { error: dbErr } = await targetClient.from("property_images").insert({
           property_id: id,
           image_url: publicUrl,
           display_order: currentCount,
