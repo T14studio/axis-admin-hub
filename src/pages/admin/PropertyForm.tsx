@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, Loader2, Save, Upload, X, Star, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Upload, X, Star, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { TablesInsert, Tables as DBTables } from "@/integrations/supabase/types";
 import { PROPERTY_CATEGORIES } from "@/types/property";
@@ -422,6 +422,35 @@ export default function PropertyForm() {
     set("highlight", current);
   };
 
+  const handleDelete = async () => {
+    if (isNew || !id) return;
+
+    const confirmed = window.confirm("ATENÇÃO\nEsta ação excluirá permanentemente este imóvel.\nTodas as imagens vinculadas também serão removidas.\nEsta operação não pode ser desfeita.");
+    
+    if (!confirmed) return;
+
+    setSaving(true);
+    const toastId = toast.loading("Excluindo imóvel...");
+
+    try {
+      const response = await fetch(`/api/delete-property/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Erro ao excluir imóvel");
+      }
+
+      toast.success("Imóvel excluído com sucesso!", { id: toastId });
+      navigate("/admin/properties");
+    } catch (error: any) {
+      console.error("Erro ao excluir imóvel:", error);
+      toast.error(error.message || "Erro ao excluir imóvel.", { id: toastId });
+      setSaving(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
@@ -434,7 +463,13 @@ export default function PropertyForm() {
           <h1 className="text-2xl font-bold text-foreground">{isNew ? "Novo imóvel" : "Editar imóvel"}</h1>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => navigate("/admin/properties")}>Cancelar</Button>
+          {!isNew && (
+            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Excluir imóvel
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => navigate("/admin/properties")} disabled={saving}>Cancelar</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
             Salvar

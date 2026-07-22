@@ -131,21 +131,23 @@ app.post('/api/upload-image',
         .from('property-images')
         .getPublicUrl(filePath);
 
-      console.log('[Proxy Upload] Inserindo no banco:', publicUrl);
+      const shouldBeMain = isMain === true || isMain === 'true';
 
-      const { error: dbError } = await supabaseServer.from('property_images').insert({
-        property_id: propertyId,
-        image_url: publicUrl,
-        display_order: parseInt(displayOrder || '0', 10),
-        is_main: isMain === true || isMain === 'true',
+      console.log('[Proxy Upload] Inserindo no banco via RPC atômica:', publicUrl, 'is_main:', shouldBeMain);
+
+      const { data: dbData, error: dbError } = await supabaseServer.rpc('insert_property_image_atomic', {
+        p_property_id: propertyId,
+        p_image_url: publicUrl,
+        p_display_order: parseInt(displayOrder || '0', 10),
+        p_is_main: shouldBeMain,
       });
 
       if (dbError) {
-        console.error('[Proxy Upload] Erro no banco:', dbError);
+        console.error('[Proxy Upload] Erro no banco (RPC):', dbError);
         return res.status(500).json({ error: dbError.message, publicUrl });
       }
 
-      console.log('[Proxy Upload] SUCESSO TOTAL! publicUrl:', publicUrl);
+      console.log('[Proxy Upload] SUCESSO TOTAL ATÔMICO! publicUrl:', publicUrl);
       return res.json({ success: true, publicUrl });
 
     } catch (err) {
@@ -157,10 +159,6 @@ app.post('/api/upload-image',
 // ──────────────────────────────────────────────────────────────────────────────
 
 // ─── Property Images Proxy (GET) ───────────────────────────────────────────────
-// CAUSA RAIZ: a policy RLS de property_images usa has_admin_access(auth.uid())
-// para o role 'authenticated'. O cliente Supabase JS no frontend não consegue
-// satisfazer essa condição (retorna []). A anon key SÃO tem acesso (verificado).
-// Este endpoint faz o SELECT server-side com a anon key e retorna as imagens.
 app.get('/api/property-images/:propertyId', async (req, res) => {
   try {
     const { propertyId } = req.params;
@@ -175,7 +173,9 @@ app.get('/api/property-images/:propertyId', async (req, res) => {
       .from('property_images')
       .select('id, image_url, display_order, is_main')
       .eq('property_id', propertyId)
-      .order('display_order');
+      .order('is_main', { ascending: false })
+      .order('display_order', { ascending: true })
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('[Property Images Proxy] Erro Supabase:', error.message);
@@ -186,6 +186,138 @@ app.get('/api/property-images/:propertyId', async (req, res) => {
     return res.json(data || []);
   } catch (err) {
     console.error('[Property Images Proxy] Exceção:', err);
+    return res.status(500).json({ error: err.message || 'Erro interno' });
+  }
+});
+// ─── Set Main Image Proxy (POST) ────────────────────────────────────────────────
+app.post('/api/set-main-image', express.json(), async (req, res) => {
+  try {
+    const { propertyId, imageId } = req.body || {};
+    if (!propertyId || !imageId) return res.status(400).json({ error: 'propertyId e imageId são obrigatórios' });
+
+    const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
+    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Call atomic RPC function to switch main image in a single SQL transaction
+    const { error } = await sb.rpc('set_main_image_atomic', {
+      p_property_id: propertyId,
+      p_image_id: imageId
+    });
+
+    if (error) {
+      console.error('[Set Main Proxy] Erro Supabase RPC:', error.message);
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.log('[Set Main Proxy] Imagem definida como capa com sucesso (atômico):', imageId);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[Set Main Proxy] Exceção:', err);
+    return res.status(500).json({ error: err.message || 'Erro interno' });
+  }
+});
+
+// ─── Delete Image Proxy (POST) ─────────────────────────────────────────────────
+app.post('/api/delete-image', express.json(), async (req, res) => {
+  try {
+    const { imageId, imageUrl } = req.body || {};
+    if (!imageId) return res.status(400).json({ error: 'imageId é obrigatório' });
+
+    const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
+    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Remove from storage if imageUrl provided
+    if (imageUrl) {
+      const storagePrefix = '/property-images/';
+      const prefixIndex = imageUrl.indexOf(storagePrefix);
+      const storagePath = prefixIndex !== -1
+        ? imageUrl.slice(prefixIndex + storagePrefix.length)
+        : imageUrl.split('/').slice(-2).join('/');
+
+      await sb.storage.from('property-images').remove([storagePath]).catch(() => {});
+    }
+
+    // Delete DB record (DB trigger trg_auto_promote_main_image auto-promotes another image to main if deleted image was main)
+    const { error } = await sb.from('property_images').delete().eq('id', imageId);
+
+    if (error) {
+      console.error('[Delete Image Proxy] Erro Supabase:', error.message);
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.log('[Delete Image Proxy] Imagem deletada com sucesso:', imageId);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[Delete Image Proxy] Exceção:', err);
+    return res.status(500).json({ error: err.message || 'Erro interno' });
+  }
+});
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ─── Delete Property Proxy (DELETE) ───────────────────────────────────────────
+app.delete('/api/delete-property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    if (!propertyId) return res.status(400).json({ error: 'propertyId obrigatório' });
+
+    const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
+    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Passo 1: Buscar todas as imagens do imóvel
+    const { data: images, error: fetchError } = await sb
+      .from('property_images')
+      .select('id, image_url')
+      .eq('property_id', propertyId);
+
+    if (fetchError) {
+      console.error('[Delete Property] Erro ao buscar imagens:', fetchError.message);
+      return res.status(500).json({ error: 'Erro ao buscar imagens do imóvel.' });
+    }
+
+    // Passo 2: Excluir todas as imagens do Storage (ignorar erros para continuar)
+    if (images && images.length > 0) {
+      const storagePaths = images.map(img => {
+        const url = img.image_url;
+        const storagePrefix = '/property-images/';
+        const prefixIndex = url.indexOf(storagePrefix);
+        if (prefixIndex !== -1) {
+          return url.slice(prefixIndex + storagePrefix.length);
+        }
+        return url.split('/').slice(-2).join('/');
+      }).filter(path => path);
+
+      if (storagePaths.length > 0) {
+        const { error: storageError } = await sb.storage.from('property-images').remove(storagePaths);
+        if (storageError) {
+          console.error('[Delete Property] Erro ao deletar do Storage (continuando...):', storageError.message);
+        }
+      }
+    }
+
+    // Passo 3: Excluir property_images do banco
+    await sb.from('property_images').delete().eq('property_id', propertyId);
+
+    // Passo 4: Excluir imóvel do banco
+    const { error: deletePropError } = await sb.from('properties').delete().eq('id', propertyId);
+
+    if (deletePropError) {
+      console.error('[Delete Property] Erro ao excluir imóvel do banco:', deletePropError.message);
+      return res.status(500).json({ error: 'Erro ao excluir imóvel.' });
+    }
+
+    console.log('[Delete Property] Imóvel e imagens deletados com sucesso:', propertyId);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[Delete Property] Exceção:', err);
     return res.status(500).json({ error: err.message || 'Erro interno' });
   }
 });
