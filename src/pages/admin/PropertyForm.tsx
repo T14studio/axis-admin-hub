@@ -108,6 +108,8 @@ export default function PropertyForm() {
       is_reserved: !!form.is_reserved,
       broker_name: form.broker_name || null,
       status: form.status || "ativo",
+      latitude: form.latitude ? Number(form.latitude) : null,
+      longitude: form.longitude ? Number(form.longitude) : null,
       // These columns were added in migrations
       published: !!form.is_published,
       // We keep the internal flags for the frontend logic
@@ -341,45 +343,48 @@ export default function PropertyForm() {
   }
 
   async function handleGeolocation() {
-    if (!navigator.geolocation) {
-      toast.error("Geolocalização não suportada pelo navegador.");
+    const address = (form.address || "").trim();
+    const city = (form.city || "").trim();
+    const state = (form.state || "").trim();
+
+    if (!address || !city || !state) {
+      toast.error("Preencha endereço, cidade e estado antes de posicionar no mapa.");
       return;
     }
 
-    const toastId = toast.loading("Buscando localização...");
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
-          if (!res.ok) throw new Error("Erro na API");
-          const data = await res.json();
-          if (data && data.address) {
-            setForm((prev: any) => ({
-              ...prev,
-              city: data.address.city || data.address.town || data.address.village || prev.city,
-              state: data.address.state || prev.state,
-              neighborhood: data.address.suburb || data.address.neighbourhood || prev.neighborhood,
-              address: data.address.road ? `${data.address.road}${data.address.house_number ? `, ${data.address.house_number}` : ''}` : prev.address
-            }));
-            toast.success("Endereço preenchido via localização!", { id: toastId });
-          } else {
-            toast.error("Não foi possível determinar o endereço.", { id: toastId });
-          }
-        } catch (error) {
-          console.error("Erro no reverse geocoding:", error);
-          toast.error("Erro ao buscar endereço.", { id: toastId });
-        }
-      },
-      (error) => {
-        let msg = "Erro ao buscar localização.";
-        if (error.code === error.PERMISSION_DENIED) msg = "Permissão de localização negada.";
-        else if (error.code === error.POSITION_UNAVAILABLE) msg = "Localização indisponível.";
-        else if (error.code === error.TIMEOUT) msg = "Tempo esgotado ao buscar localização.";
-        toast.error(msg, { id: toastId });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    const toastId = toast.loading("Buscando localização no mapa...");
+
+    try {
+      const parts = [address];
+      if (form.neighborhood?.trim()) parts.push(form.neighborhood.trim());
+      parts.push(city);
+      parts.push(state);
+      if (form.cep?.trim()) parts.push(form.cep.trim());
+      parts.push("Brasil");
+
+      const query = parts.join(", ");
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      if (!res.ok) throw new Error("Erro na API de geocodificação");
+
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        setForm((prev: any) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lon,
+        }));
+
+        toast.success("Imóvel localizado no mapa!", { id: toastId });
+      } else {
+        toast.error("Endereço não localizado.", { id: toastId });
+      }
+    } catch (error) {
+      console.error("Erro no geocoding:", error);
+      toast.error("Endereço não localizado.", { id: toastId });
+    }
   }
 
   const set = (k: string, v: any) => {
@@ -521,6 +526,19 @@ export default function PropertyForm() {
                   </Button>
                 </div>
               </div>
+
+              {form.latitude && form.longitude && (
+                <div className="mt-4 rounded-md overflow-hidden border border-border h-64 w-full">
+                  <iframe
+                    title="Mapa do Imóvel"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    scrolling="no"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${form.longitude - 0.005},${form.latitude - 0.005},${form.longitude + 0.005},${form.latitude + 0.005}&layer=mapnik&marker=${form.latitude},${form.longitude}`}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
