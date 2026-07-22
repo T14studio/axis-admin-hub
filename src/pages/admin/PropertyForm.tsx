@@ -133,66 +133,66 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Cliente isolado usando a chave anon pública, sem ler tokens do localStorage
-    // Isso evita rejeições no Supabase Storage quando o JWT do usuário está inconsistente ou em sessão mock
-    const cleanStorageClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-
-    console.log("[Upload] Iniciando upload direto com cliente anon limpo. Arquivos:", filesArray.length);
+    console.log("[Upload Proxy Base64] Iniciando envio de", filesArray.length, "arquivo(s)");
 
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filePath = `${id}/${Date.now()}-${i}.${fileExt}`;
 
       try {
-        console.log("[Upload] Enviando para Supabase Storage:", { filePath, size: file.size });
+        console.log("[Upload Proxy Base64] Lendo arquivo:", file.name, "Tamanho:", file.size);
 
-        const { error: upErr } = await cleanStorageClient.storage
-          .from("property-images")
-          .upload(filePath, file, { contentType: file.type || "image/jpeg", upsert: false });
+        // Converter arquivo para Base64 de forma síncrona/promisificada
+        const base64String = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
 
-        if (upErr) {
-          console.error("[Upload] Erro no storage:", upErr);
-          lastErrorMsg = upErr.message;
+        console.log("[Upload Proxy Base64] Enviando JSON para /api/upload-image...");
+
+        const response = await fetch("/api/upload-image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            propertyId: id,
+            fileName: file.name,
+            fileType: file.type || "image/jpeg",
+            fileBase64: base64String,
+            displayOrder: currentCount,
+            isMain: currentCount === 0,
+          }),
+        });
+
+        const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+
+        if (!response.ok || !result.publicUrl) {
+          console.error("[Upload Proxy Base64] Erro do servidor:", result);
+          lastErrorMsg = result.error || `Erro ${response.status}`;
           continue;
         }
 
-        const { data: { publicUrl } } = cleanStorageClient.storage
-          .from("property-images")
-          .getPublicUrl(filePath);
+        currentCount++;
+        successCount++;
+        console.log("[Upload Proxy Base64] SUCESSO! publicUrl:", result.publicUrl);
 
-        const { error: dbErr } = await cleanStorageClient.from("property_images").insert({
-          property_id: id,
-          image_url: publicUrl,
-          display_order: currentCount,
-          is_main: currentCount === 0,
-        });
-
-        if (dbErr) {
-          console.error("[Upload] Erro no banco de dados:", dbErr);
-          lastErrorMsg = dbErr.message;
-        } else {
-          currentCount++;
-          successCount++;
-          console.log("[Upload] Sucesso!", publicUrl);
-        }
       } catch (err: any) {
-        console.error("[Upload] Exceção:", err);
-        lastErrorMsg = err?.message || "Erro inesperado";
+        console.error("[Upload Proxy Base64] Exceção:", err);
+        lastErrorMsg = err?.message || "Erro ao ler arquivo ou comunicar com servidor";
       }
     }
 
-
     if (successCount > 0) {
-      toast.success(`${successCount} imagem(ns) enviada(s)!`, { id: toastId });
+      toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
       fetchProperty(id);
     } else {
-      toast.error(`Falha: ${lastErrorMsg || "Erro desconhecido"}`, { id: toastId });
+      toast.error(`Falha no upload: ${lastErrorMsg || "Erro desconhecido"}`, { id: toastId });
     }
     setUploading(false);
   }
+
 
 
 

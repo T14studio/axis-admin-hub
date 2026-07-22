@@ -86,79 +86,75 @@ function httpsPost(urlStr, headers, bodyBuffer) {
   });
 }
 
-// ─── Upload Proxy (raw binary via express.raw) ────────────────────────────────────
+// ─── Upload Proxy (JSON Base64 -> Supabase Server-side) ───────────────────────────
 app.post('/api/upload-image',
-  express.raw({ type: () => true, limit: '30mb' }),
+  express.json({ limit: '50mb' }),
   async (req, res) => {
-    res.setTimeout(25000, () => res.status(504).json({ error: 'Express timeout 25s' }));
+    res.setTimeout(30000, () => res.status(504).json({ error: 'Express timeout 30s' }));
     try {
-      const propertyId   = (req.headers['x-property-id']    || '').trim();
-      const displayOrder = parseInt(req.headers['x-display-order'] || '0', 10);
-      const isMain       = req.headers['x-is-main'] === 'true';
-      const fileName     = (req.headers['x-file-name'] || 'image.jpg').trim();
-      const fileType     = (req.headers['content-type'] || 'image/jpeg').trim();
-      const fileExt      = (fileName.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const uniqueName   = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt || 'jpg'}`;
-      const filePath     = `${propertyId}/${uniqueName}`;
+      const { propertyId, fileName, fileType, fileBase64, displayOrder, isMain } = req.body || {};
 
-      console.log('[Upload] inicio:', { filePath, fileType, propertyId, displayOrder, isMain, bytes: req.body?.length });
-
-      if (!propertyId) {
-        return res.status(400).json({ error: 'propertyId ausente' });
-      }
-      if (!req.body || req.body.length === 0) {
-        return res.status(400).json({ error: 'Arquivo vazio' });
+      if (!propertyId || !fileBase64) {
+        return res.status(400).json({ error: 'propertyId/fileBase64 ausentes' });
       }
 
-      // Usar defaults hardcoded caso env vars não estejam disponíveis no Hostinger
       const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
       const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
 
+      const supabaseServer = createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+      });
 
-      // ── 1. Upload para o Supabase Storage via HTTPS nativo ──────────────────
-      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
-      console.log('[Upload] enviando para Supabase Storage:', uploadUrl.slice(0, 80));
+      // Extrai os bytes da string base64
+      const base64Data = fileBase64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
 
-      const result = await httpsPost(uploadUrl, {
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'apikey': SUPABASE_KEY,
-        'Content-Type': fileType.split(';')[0].trim(), // remove boundary se vier de multipart
-        'x-upsert': 'false',
-      }, req.body);
+      const ext = (fileName || 'image.jpg').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const filePath = `${propertyId}/${uniqueName}`;
 
-      console.log('[Upload] Storage respondeu:', result.status, result.body.slice(0, 200));
+      console.log('[Proxy Upload] Subindo para Supabase Storage:', filePath, 'Tamanho:', buffer.length, 'bytes');
 
-      if (result.status >= 400) {
-        return res.status(result.status).json({
-          error: `Storage ${result.status}: ${result.body}`,
+      const { data: storageData, error: storageErr } = await supabaseServer.storage
+        .from('property-images')
+        .upload(filePath, buffer, {
+          contentType: fileType || 'image/jpeg',
+          upsert: true
         });
+
+      if (storageErr) {
+        console.error('[Proxy Upload] Erro no storage:', storageErr);
+        return res.status(500).json({ error: storageErr.message });
       }
 
-      // ── 2. Inserir referência no banco de dados ─────────────────────────────
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/property-images/${filePath}`;
+      const { data: { publicUrl } } = supabaseServer.storage
+        .from('property-images')
+        .getPublicUrl(filePath);
 
-      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_KEY);
-      const { error: dbError } = await supabaseAdmin.from('property_images').insert({
+      console.log('[Proxy Upload] Inserindo no banco:', publicUrl);
+
+      const { error: dbError } = await supabaseServer.from('property_images').insert({
         property_id: propertyId,
         image_url: publicUrl,
-        display_order: displayOrder,
-        is_main: isMain,
+        display_order: parseInt(displayOrder || '0', 10),
+        is_main: isMain === true || isMain === 'true',
       });
 
       if (dbError) {
-        console.error('[Upload] Erro ao inserir no banco:', dbError.message);
-        return res.status(500).json({ error: `DB: ${dbError.message}`, publicUrl });
+        console.error('[Proxy Upload] Erro no banco:', dbError);
+        return res.status(500).json({ error: dbError.message, publicUrl });
       }
 
-      console.log('[Upload] Sucesso! publicUrl:', publicUrl);
-      return res.json({ publicUrl });
+      console.log('[Proxy Upload] SUCESSO TOTAL! publicUrl:', publicUrl);
+      return res.json({ success: true, publicUrl });
 
     } catch (err) {
-      console.error('[Upload] Erro:', err.message);
-      return res.status(500).json({ error: err.message || 'Erro interno' });
+      console.error('[Proxy Upload] Exceção:', err);
+      return res.status(500).json({ error: err.message || 'Erro no servidor' });
     }
   }
 );
+// ──────────────────────────────────────────────────────────────────────────────
 // ──────────────────────────────────────────────────────────────────────────────
 
 console.log('--- Hostinger Node.js Startup ---');
