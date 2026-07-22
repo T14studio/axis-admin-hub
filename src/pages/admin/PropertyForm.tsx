@@ -125,31 +125,47 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
+    setUploading(true);
+    const toastId = toast.loading(`Lendo ${filesArray.length} imagem(ns)...`);
+
+    // PASSO 1 (HEURÍSTICA DE SEGURANÇA): Ler todos os arquivos para memória (Base64)
+    // ENQUANTO o e.target.value ainda contém a referência do input intacta.
+    const filePayloads: { fileName: string; fileType: string; base64: string }[] = [];
+
+    try {
+      for (const file of filesArray) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error(`Erro de leitura no arquivo ${file.name}`));
+          reader.readAsDataURL(file);
+        });
+        filePayloads.push({
+          fileName: file.name,
+          fileType: file.type || "image/jpeg",
+          base64,
+        });
+      }
+    } catch (readErr: any) {
+      console.error("[Upload] Erro ao ler arquivos:", readErr);
+      toast.error(readErr.message || "Erro ao ler arquivo do disco", { id: toastId });
+      setUploading(false);
+      return;
+    }
+
+    // PASSO 2: Agora que TODOS os arquivos estão em RAM como Base64, é 100% seguro resetar o input
     e.target.value = "";
 
-    setUploading(true);
-    const toastId = toast.loading(`Enviando ${filesArray.length} imagem(ns)...`);
+    // PASSO 3: Enviar cada payload JSON para o servidor proxy (Express -> Supabase Storage & DB)
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    console.log("[Upload Proxy Base64] Iniciando envio de", filesArray.length, "arquivo(s)");
+    toast.loading(`Enviando para o servidor...`, { id: toastId });
 
-    for (let i = 0; i < filesArray.length; i++) {
-      const file = filesArray[i];
-
+    for (const payload of filePayloads) {
       try {
-        console.log("[Upload Proxy Base64] Lendo arquivo:", file.name, "Tamanho:", file.size);
-
-        // Converter arquivo para Base64 de forma síncrona/promisificada
-        const base64String = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = (err) => reject(err);
-          reader.readAsDataURL(file);
-        });
-
-        console.log("[Upload Proxy Base64] Enviando JSON para /api/upload-image...");
+        console.log("[Upload Proxy Base64] Enviando JSON para /api/upload-image:", payload.fileName);
 
         const response = await fetch("/api/upload-image", {
           method: "POST",
@@ -158,9 +174,9 @@ export default function PropertyForm() {
           },
           body: JSON.stringify({
             propertyId: id,
-            fileName: file.name,
-            fileType: file.type || "image/jpeg",
-            fileBase64: base64String,
+            fileName: payload.fileName,
+            fileType: payload.fileType,
+            fileBase64: payload.base64,
             displayOrder: currentCount,
             isMain: currentCount === 0,
           }),
@@ -180,7 +196,7 @@ export default function PropertyForm() {
 
       } catch (err: any) {
         console.error("[Upload Proxy Base64] Exceção:", err);
-        lastErrorMsg = err?.message || "Erro ao ler arquivo ou comunicar com servidor";
+        lastErrorMsg = err?.message || "Erro ao comunicar com o servidor";
       }
     }
 
@@ -192,6 +208,7 @@ export default function PropertyForm() {
     }
     setUploading(false);
   }
+
 
 
 
