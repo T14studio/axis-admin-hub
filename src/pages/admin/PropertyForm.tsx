@@ -133,18 +133,13 @@ export default function PropertyForm() {
     let successCount = 0;
     let lastErrorMsg = "";
 
-    // Obter sessão atual para verificar se o token é válido
-    const { data: { session } } = await supabase.auth.getSession();
-    const isMock = !session?.access_token || session.access_token === "mock-token" || !session.access_token.includes(".");
+    // Cliente isolado usando a chave anon pública, sem ler tokens do localStorage
+    // Isso evita rejeições no Supabase Storage quando o JWT do usuário está inconsistente ou em sessão mock
+    const cleanStorageClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
 
-    // Se o token for mock/inválido, usar cliente limpo sem localStorage para não enviar mock-token ao Supabase
-    const targetClient = isMock
-      ? createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-        })
-      : supabase;
-
-    console.log("[Upload] Iniciando upload direto Supabase (isMock:", isMock, ") arquivos:", filesArray.length);
+    console.log("[Upload] Iniciando upload direto com cliente anon limpo. Arquivos:", filesArray.length);
 
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
@@ -152,23 +147,23 @@ export default function PropertyForm() {
       const filePath = `${id}/${Date.now()}-${i}.${fileExt}`;
 
       try {
-        console.log("[Upload] Direto Supabase Storage:", { filePath, size: file.size, isMock });
+        console.log("[Upload] Enviando para Supabase Storage:", { filePath, size: file.size });
 
-        const { error: upErr } = await targetClient.storage
+        const { error: upErr } = await cleanStorageClient.storage
           .from("property-images")
           .upload(filePath, file, { contentType: file.type || "image/jpeg", upsert: false });
 
         if (upErr) {
-          console.error("[Upload] Storage error:", upErr);
+          console.error("[Upload] Erro no storage:", upErr);
           lastErrorMsg = upErr.message;
           continue;
         }
 
-        const { data: { publicUrl } } = targetClient.storage
+        const { data: { publicUrl } } = cleanStorageClient.storage
           .from("property-images")
           .getPublicUrl(filePath);
 
-        const { error: dbErr } = await targetClient.from("property_images").insert({
+        const { error: dbErr } = await cleanStorageClient.from("property_images").insert({
           property_id: id,
           image_url: publicUrl,
           display_order: currentCount,
@@ -176,18 +171,19 @@ export default function PropertyForm() {
         });
 
         if (dbErr) {
-          console.error("[Upload] DB error:", dbErr);
+          console.error("[Upload] Erro no banco de dados:", dbErr);
           lastErrorMsg = dbErr.message;
         } else {
           currentCount++;
           successCount++;
-          console.log("[Upload] Sucesso:", publicUrl);
+          console.log("[Upload] Sucesso!", publicUrl);
         }
       } catch (err: any) {
         console.error("[Upload] Exceção:", err);
         lastErrorMsg = err?.message || "Erro inesperado";
       }
     }
+
 
     if (successCount > 0) {
       toast.success(`${successCount} imagem(ns) enviada(s)!`, { id: toastId });

@@ -112,7 +112,8 @@ app.post('/api/upload-image',
 
       // Usar defaults hardcoded caso env vars não estejam disponíveis no Hostinger
       const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
-      const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNzY5MTgsImV4cCI6MjA2NDY1MjkxOH0.1hGFnjV2sBvPfMCWgJzS1_RkGHe_gZ9LLqPpGbMlqMo';
+      const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
+
 
       // ── 1. Upload para o Supabase Storage via HTTPS nativo ──────────────────
       const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
