@@ -125,14 +125,17 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
-    // ─── CAUSA RAIZ FIXADA ────────────────────────────────────────────────────
-    // Chromium invalida os file descriptors do SO quando o React re-renderiza o
-    // <input type="file"> (disparado por qualquer setState). Para evitar isso,
-    // iniciamos TODOS os FileReader.readAsDataURL() de forma SÍNCRONA aqui,
-    // ANTES de qualquer await, setState ou e.target.value = "".
-    // Uma vez que readAsDataURL() está em execução, o browser garante sua conclusão
-    // mesmo que o input seja resetado ou o componente re-renderize.
+    // ─── CAUSA RAIZ DEFINITIVA ────────────────────────────────────────────────
+    // Quando React re-renderiza com setUploading(true), aplica disabled=true no
+    // <input type="file">. O Chromium, ao desabilitar o input, chama internamente
+    // setFilesFromPaths([]), liberando todos os file handles do SO.
+    // Qualquer FileReader em andamento recebe NOT_READABLE_ERR.
+    //
+    // CORREÇÃO: aguardar Promise.all COMPLETAMENTE antes de qualquer setState
+    // ou e.target.value="". O input permanece habilitado até a leitura terminar.
     // ─────────────────────────────────────────────────────────────────────────
+
+    // 1. Inicia TODAS as leituras de forma SÍNCRONA (sem nenhum setState ainda)
     const readPromises = filesArray.map(file =>
       new Promise<{ fileName: string; fileType: string; base64: string }>((resolve, reject) => {
         const reader = new FileReader();
@@ -141,38 +144,46 @@ export default function PropertyForm() {
           fileType: file.type || "image/jpeg",
           base64: reader.result as string,
         });
-        reader.onerror = () => reject(new Error(`Falha ao ler: ${file.name}`));
-        reader.readAsDataURL(file); // ← chamado SINCRONAMENTE, nenhum await antes
+        reader.onerror = () => {
+          // Diagnóstico detalhado para identificar tipo exato do erro
+          const err = reader.error;
+          console.error("[FileReader] Erro de leitura:", {
+            code: err?.code,       // 4=NOT_READABLE_ERR, 2=SECURITY_ERR, etc.
+            name: err?.name,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+          });
+          reject(new Error(`Não foi possível ler: ${file.name} [${err?.name || err?.code || "?"}]`));
+        };
+        reader.readAsDataURL(file); // ← síncrono, ZERO setState antes desta linha
       })
     );
 
-    // Agora é seguro resetar o input e atualizar estado — os readers já estão registrados
-    e.target.value = "";
-    setUploading(true);
-    const toastId = toast.loading(`Lendo ${filesArray.length} imagem(ns)...`);
-
-    // Aguarda TODOS os arquivos serem lidos em paralelo (já iniciados acima)
+    // 2. Aguarda TODAS as leituras — input ainda habilitado, sem nenhum re-render
     let filePayloads: { fileName: string; fileType: string; base64: string }[];
     try {
       filePayloads = await Promise.all(readPromises);
-      console.log("[Upload] Todos os arquivos lidos em RAM:", filePayloads.map(f => f.fileName));
+      console.log("[Upload] Leitura concluída:", filePayloads.map(f => `${f.fileName} (${f.base64.length} chars)`));
     } catch (readErr: any) {
-      console.error("[Upload] Erro de leitura de arquivo:", readErr);
-      toast.error(readErr.message || "Erro ao ler arquivo do disco", { id: toastId });
-      setUploading(false);
+      console.error("[Upload] Falha na leitura:", readErr.message);
+      toast.error(readErr.message || "Não foi possível ler o arquivo selecionado");
       return;
     }
 
-    // Envia cada arquivo para o servidor proxy (JSON → Express → Supabase)
+    // 3. SOMENTE AQUI: leitura 100% concluída → seguro mutar estado e resetar input
+    e.target.value = "";
+    setUploading(true);
+    const toastId = toast.loading(`Enviando ${filePayloads.length} imagem(ns)...`);
+
+    // 4. Envia cada arquivo para o servidor proxy (Base64 JSON → Express → Supabase)
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    toast.loading("Enviando para o servidor...", { id: toastId });
-
     for (const payload of filePayloads) {
       try {
-        console.log("[Upload Proxy] Enviando:", payload.fileName);
+        console.log("[Upload] Enviando para servidor:", payload.fileName, `(${Math.round(payload.base64.length / 1024)}KB base64)`);
 
         const response = await fetch("/api/upload-image", {
           method: "POST",
@@ -188,23 +199,25 @@ export default function PropertyForm() {
         });
 
         const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        console.log("[Upload] Resposta servidor:", response.status, result);
 
         if (!response.ok || !result.publicUrl) {
-          console.error("[Upload Proxy] Erro do servidor:", result);
           lastErrorMsg = result.error || `Erro ${response.status}`;
+          console.error("[Upload] Falha servidor:", lastErrorMsg);
           continue;
         }
 
         currentCount++;
         successCount++;
-        console.log("[Upload Proxy] SUCESSO:", result.publicUrl);
+        console.log("[Upload] ✅ SUCESSO:", result.publicUrl);
 
       } catch (err: any) {
-        console.error("[Upload Proxy] Exceção de rede:", err);
+        console.error("[Upload] Exceção de rede:", err?.message);
         lastErrorMsg = err?.message || "Erro de conexão com o servidor";
       }
     }
 
+    // 5. Resultado final
     if (successCount > 0) {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
       fetchProperty(id);
