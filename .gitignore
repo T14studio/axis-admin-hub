@@ -1,6 +1,8 @@
 node_modules
 .env
-dist
+# dist foi removido do .gitignore intencionalmente:
+# O Hostinger faz deploy via Git e nao executa npm run build automaticamente.
+# O build compilado (dist/) precisa ser versionado para chegar ao servidor.
 *.lock
 *.lockb
 testsprite_tests/tmp
