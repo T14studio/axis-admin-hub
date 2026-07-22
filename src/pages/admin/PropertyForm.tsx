@@ -125,53 +125,58 @@ export default function PropertyForm() {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
+    // ─── CAUSA RAIZ FIXADA ────────────────────────────────────────────────────
+    // Chromium invalida os file descriptors do SO quando o React re-renderiza o
+    // <input type="file"> (disparado por qualquer setState). Para evitar isso,
+    // iniciamos TODOS os FileReader.readAsDataURL() de forma SÍNCRONA aqui,
+    // ANTES de qualquer await, setState ou e.target.value = "".
+    // Uma vez que readAsDataURL() está em execução, o browser garante sua conclusão
+    // mesmo que o input seja resetado ou o componente re-renderize.
+    // ─────────────────────────────────────────────────────────────────────────
+    const readPromises = filesArray.map(file =>
+      new Promise<{ fileName: string; fileType: string; base64: string }>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          fileName: file.name,
+          fileType: file.type || "image/jpeg",
+          base64: reader.result as string,
+        });
+        reader.onerror = () => reject(new Error(`Falha ao ler: ${file.name}`));
+        reader.readAsDataURL(file); // ← chamado SINCRONAMENTE, nenhum await antes
+      })
+    );
+
+    // Agora é seguro resetar o input e atualizar estado — os readers já estão registrados
+    e.target.value = "";
     setUploading(true);
     const toastId = toast.loading(`Lendo ${filesArray.length} imagem(ns)...`);
 
-    // PASSO 1 (HEURÍSTICA DE SEGURANÇA): Ler todos os arquivos para memória (Base64)
-    // ENQUANTO o e.target.value ainda contém a referência do input intacta.
-    const filePayloads: { fileName: string; fileType: string; base64: string }[] = [];
-
+    // Aguarda TODOS os arquivos serem lidos em paralelo (já iniciados acima)
+    let filePayloads: { fileName: string; fileType: string; base64: string }[];
     try {
-      for (const file of filesArray) {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error(`Erro de leitura no arquivo ${file.name}`));
-          reader.readAsDataURL(file);
-        });
-        filePayloads.push({
-          fileName: file.name,
-          fileType: file.type || "image/jpeg",
-          base64,
-        });
-      }
+      filePayloads = await Promise.all(readPromises);
+      console.log("[Upload] Todos os arquivos lidos em RAM:", filePayloads.map(f => f.fileName));
     } catch (readErr: any) {
-      console.error("[Upload] Erro ao ler arquivos:", readErr);
+      console.error("[Upload] Erro de leitura de arquivo:", readErr);
       toast.error(readErr.message || "Erro ao ler arquivo do disco", { id: toastId });
       setUploading(false);
       return;
     }
 
-    // PASSO 2: Agora que TODOS os arquivos estão em RAM como Base64, é 100% seguro resetar o input
-    e.target.value = "";
-
-    // PASSO 3: Enviar cada payload JSON para o servidor proxy (Express -> Supabase Storage & DB)
+    // Envia cada arquivo para o servidor proxy (JSON → Express → Supabase)
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
 
-    toast.loading(`Enviando para o servidor...`, { id: toastId });
+    toast.loading("Enviando para o servidor...", { id: toastId });
 
     for (const payload of filePayloads) {
       try {
-        console.log("[Upload Proxy Base64] Enviando JSON para /api/upload-image:", payload.fileName);
+        console.log("[Upload Proxy] Enviando:", payload.fileName);
 
         const response = await fetch("/api/upload-image", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             propertyId: id,
             fileName: payload.fileName,
@@ -185,18 +190,18 @@ export default function PropertyForm() {
         const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
 
         if (!response.ok || !result.publicUrl) {
-          console.error("[Upload Proxy Base64] Erro do servidor:", result);
+          console.error("[Upload Proxy] Erro do servidor:", result);
           lastErrorMsg = result.error || `Erro ${response.status}`;
           continue;
         }
 
         currentCount++;
         successCount++;
-        console.log("[Upload Proxy Base64] SUCESSO! publicUrl:", result.publicUrl);
+        console.log("[Upload Proxy] SUCESSO:", result.publicUrl);
 
       } catch (err: any) {
-        console.error("[Upload Proxy Base64] Exceção:", err);
-        lastErrorMsg = err?.message || "Erro ao comunicar com o servidor";
+        console.error("[Upload Proxy] Exceção de rede:", err);
+        lastErrorMsg = err?.message || "Erro de conexão com o servidor";
       }
     }
 
@@ -208,6 +213,7 @@ export default function PropertyForm() {
     }
     setUploading(false);
   }
+
 
 
 
