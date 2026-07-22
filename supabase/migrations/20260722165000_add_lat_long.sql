@@ -1,0 +1,4 @@
+-- Add missing columns for geolocation
+ALTER TABLE properties
+ADD COLUMN IF NOT EXISTS latitude NUMERIC(10, 8),
+ADD COLUMN IF NOT EXISTS longitude NUMERIC(11, 8);

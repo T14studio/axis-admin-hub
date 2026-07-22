@@ -1,8 +1,17 @@
+# Desativar listagem de diretórios por segurança
+Options -Indexes
+
+# Definir index.html como documento padrão
+DirectoryIndex index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+
+  # 1. Não reescrever se for um arquivo físico existente (CSS, JS, imagens, favicon, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # 2. Redirecionar todas as rotas virtuais da SPA para /index.html
+  RewriteRule ^ index.html [L]
 </IfModule>

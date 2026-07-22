@@ -1,8 +1,29 @@
+# Desativar listagem de diretórios por segurança
+Options -Indexes
+
+# Definir index.html como documento de entrada padrão
+DirectoryIndex index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+
+  # 1. Não reescrever se for um arquivo físico existente (CSS, JS, imagens, favicon, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # 2. Redirecionar todas as rotas virtuais da SPA para /index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Cache de Assets Estáticos
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
+    Header set Cache-Control "max-age=31536000, public"
+  </FilesMatch>
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
 </IfModule>
