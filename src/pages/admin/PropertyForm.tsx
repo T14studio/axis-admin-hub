@@ -269,43 +269,42 @@ export default function PropertyForm() {
   async function handleRemoveImage(imgId: string, imageUrl: string) {
     if (!window.confirm("Deseja excluir esta imagem?")) return;
 
-    // Extrair o path do Storage da URL pública corretamente
-    // URL format: https://<project>.supabase.co/storage/v1/object/public/property-images/<id>/<filename>
-    const storagePrefix = "/property-images/";
-    const prefixIndex = imageUrl.indexOf(storagePrefix);
-    const storagePath = prefixIndex !== -1
-      ? imageUrl.slice(prefixIndex + storagePrefix.length)
-      : imageUrl.split("/").slice(-2).join("/");
-
-    const { error: storageError } = await supabase.storage
-      .from("property-images")
-      .remove([storagePath]);
-
-    if (storageError) {
-      console.warn("[Storage] Aviso ao remover arquivo:", storageError.message);
-    }
-
-    const { error } = await supabase.from("property_images").delete().eq("id", imgId);
-
-    if (error) toast.error(error.message);
-    else {
+    try {
+      const res = await fetch("/api/delete-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId: imgId, imageUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        toast.error(data.error || "Erro ao remover imagem");
+        return;
+      }
       toast.success("Imagem removida");
-      setImages(images.filter(img => img.id !== imgId));
+      if (id && id !== "new") fetchProperty(id);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao conectar com o servidor");
     }
   }
 
   async function handleSetMainImage(imgId: string) {
     if (!id || id === "new") return;
-    
-    // Reset all
-    await supabase.from("property_images").update({ is_main: false }).eq("property_id", id);
-    // Set new main
-    const { error } = await supabase.from("property_images").update({ is_main: true }).eq("id", imgId);
-    
-    if (error) toast.error(error.message);
-    else {
-      setImages(images.map(img => ({ ...img, is_main: img.id === imgId })));
+
+    try {
+      const res = await fetch("/api/set-main-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: id, imageId: imgId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        toast.error(data.error || "Erro ao definir capa");
+        return;
+      }
       toast.success("Imagem de capa atualizada");
+      fetchProperty(id);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao conectar com o servidor");
     }
   }
 
@@ -582,6 +581,7 @@ export default function PropertyForm() {
               </div>
             </CardHeader>
             <CardContent>
+              {(() => { console.log("STATE IMAGES", images.length, images.map(i => i.image_url)); return null; })()}
               {images.length === 0 ? (
                 <div className="border-2 border-dashed rounded-lg py-12 flex flex-col items-center justify-center text-muted-foreground">
                   <Upload className="h-8 w-8 mb-2 opacity-20" />
@@ -589,9 +589,12 @@ export default function PropertyForm() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {images.map((img) => (
+                  {images.map((img) => {
+                    const src = img.image_url ? `${img.image_url}?t=${Date.now()}` : "";
+                    console.log("IMAGE", img.id, "url:", img.image_url, "src:", src);
+                    return (
                     <div key={img.id} className="group relative aspect-square rounded-md overflow-hidden bg-muted">
-                      <img src={img.image_url} alt="Property" className="h-full w-full object-cover" />
+                      <img src={src} alt="Property" className="h-full w-full object-cover" />
                       
                       {/* Overlay Controls */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -621,7 +624,8 @@ export default function PropertyForm() {
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
