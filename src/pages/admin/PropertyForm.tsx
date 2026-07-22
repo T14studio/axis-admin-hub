@@ -355,35 +355,44 @@ export default function PropertyForm() {
     const toastId = toast.loading("Buscando localização no mapa...");
 
     try {
-      const parts = [address];
-      if (form.neighborhood?.trim()) parts.push(form.neighborhood.trim());
-      parts.push(city);
-      parts.push(state);
-      if (form.cep?.trim()) parts.push(form.cep.trim());
-      parts.push("Brasil");
+      const queries = [
+        `${address}, ${form.neighborhood || ''}, ${city}, ${state}, ${form.cep || ''}, Brasil`.replace(/,\s*,/g, ','),
+        `${address}, ${city}, ${state}, Brasil`,
+        `${address}, ${form.neighborhood || ''}, ${city}, Brasil`.replace(/,\s*,/g, ','),
+        form.cep ? `${form.cep}, Brasil` : ''
+      ].filter(q => q && q.trim().length > 0 && q.trim() !== 'Brasil');
 
-      const query = parts.join(", ");
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
-      if (!res.ok) throw new Error("Erro na API de geocodificação");
+      let found = false;
 
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
+      for (const query of queries) {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
+          headers: { 'Accept-Language': 'pt-BR' }
+        });
+        if (!res.ok) continue;
 
-        setForm((prev: any) => ({
-          ...prev,
-          latitude: lat,
-          longitude: lon,
-        }));
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+          const lat = parseFloat(data[0].lat);
+          const lon = parseFloat(data[0].lon);
 
-        toast.success("Imóvel localizado no mapa!", { id: toastId });
-      } else {
+          setForm((prev: any) => ({
+            ...prev,
+            latitude: lat,
+            longitude: lon,
+          }));
+
+          toast.success("Imóvel localizado no mapa!", { id: toastId });
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
         toast.error("Endereço não localizado.", { id: toastId });
       }
     } catch (error) {
       console.error("Erro no geocoding:", error);
-      toast.error("Endereço não localizado.", { id: toastId });
+      toast.error("Erro de conexão ao buscar endereço.", { id: toastId });
     }
   }
 
@@ -643,7 +652,7 @@ export default function PropertyForm() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {images.map((img) => {
-                    const src = img.image_url ? `${img.image_url}?t=${Date.now()}` : "";
+                    const src = img.image_url ? img.image_url : "";
                     console.log("IMAGE", img.id, "url:", img.image_url, "src:", src);
                     return (
                     <div key={img.id} className="group relative aspect-square rounded-md overflow-hidden bg-muted">
