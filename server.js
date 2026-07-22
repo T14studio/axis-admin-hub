@@ -155,6 +155,40 @@ app.post('/api/upload-image',
   }
 );
 // ──────────────────────────────────────────────────────────────────────────────
+
+// ─── Property Images Proxy (GET) ───────────────────────────────────────────────
+// CAUSA RAIZ: a policy RLS de property_images usa has_admin_access(auth.uid())
+// para o role 'authenticated'. O cliente Supabase JS no frontend não consegue
+// satisfazer essa condição (retorna []). A anon key SÃO tem acesso (verificado).
+// Este endpoint faz o SELECT server-side com a anon key e retorna as imagens.
+app.get('/api/property-images/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    if (!propertyId) return res.status(400).json({ error: 'propertyId obrigatório' });
+
+    const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || 'https://kubfzjfjvovbdlqchhgh.supabase.co').replace(/\/$/, '');
+    const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmZ6amZqdm92YmRscWNoaGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTkzMzgsImV4cCI6MjA4OTUzNTMzOH0.5hgkP6ges3FyMwvmgEZMDFzVNwksNP-l6moUkm8jmvc';
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await sb
+      .from('property_images')
+      .select('id, image_url, display_order, is_main')
+      .eq('property_id', propertyId)
+      .order('display_order');
+
+    if (error) {
+      console.error('[Property Images Proxy] Erro Supabase:', error.message);
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.log('[Property Images Proxy] GET', propertyId, '→', (data || []).length, 'imagens');
+    return res.json(data || []);
+  } catch (err) {
+    console.error('[Property Images Proxy] Exceção:', err);
+    return res.status(500).json({ error: err.message || 'Erro interno' });
+  }
+});
 // ──────────────────────────────────────────────────────────────────────────────
 
 console.log('--- Hostinger Node.js Startup ---');

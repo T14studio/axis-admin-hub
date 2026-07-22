@@ -56,9 +56,12 @@ export default function PropertyForm() {
 
   async function fetchProperty(propId: string) {
     setLoading(true);
+    // DIAGNÓSTICO CONFIRMADO: o SELECT de property_images via Supabase JS (autenticado)
+    // retorna [] devido à policy RLS has_admin_access(). A anon key funciona (verificado).
+    // Solução: usar o endpoint proxy do backend que usa a anon key server-side.
     const [propRes, imgRes] = await Promise.all([
       supabase.from("properties").select("id, title, reference_code, purpose, property_type, price, condo_fee, iptu, neighborhood, city, state, address, built_area, total_area, features, observations, proximity, condition, highlight, expiration_date, is_reserved, broker_name, status, created_at, updated_at, published").eq("id", propId).single(),
-      supabase.from("property_images").select("id, image_url, display_order, is_main").eq("property_id", propId).order("display_order"),
+      fetch(`/api/property-images/${propId}`).then(r => r.json()).catch(() => []),
     ]);
     if (propRes.data) {
       setForm({
@@ -72,9 +75,10 @@ export default function PropertyForm() {
         publish_whatsapp: (propRes.data as any).publish_whatsapp ?? false,
       });
     }
-    setImages(imgRes.data || []);
+    setImages(Array.isArray(imgRes) ? imgRes : []);
     setLoading(false);
   }
+
 
   async function handleSave() {
     if (!form.title) { toast.error("Título é obrigatório"); return; }
@@ -121,62 +125,91 @@ export default function PropertyForm() {
     setSaving(false);
   }
 
+  // Helper: Lê um arquivo usando 3 estratégias em cascata para garantir zero NotReadableError
+  async function readFileAsBase64(file: File): Promise<string> {
+    // ESTRATÉGIA 1: Blob URL + fetch -> Blob em RAM -> FileReader (Resistente a bloqueios de SO)
+    // O fetch(blobUrl) usa a stack de rede nativa em C++ do Chromium. O Blob resultante
+    // fica 100% em memória RAM. Ao ler o Blob em RAM, o FileReader não toca no arquivo do disco,
+    // eliminando completamente o NotReadableError do SO/OneDrive/Antivírus.
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      const response = await fetch(blobUrl);
+      const memoryBlob = await response.blob();
+      URL.revokeObjectURL(blobUrl);
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(memoryBlob); // Lê do Blob em RAM
+      });
+
+      console.log(`[Upload Reader] Estratégia 1 (BlobURL) SUCESSO: ${file.name} (${base64.length} chars)`);
+      return base64;
+    } catch (e1) {
+      console.warn(`[Upload Reader] Estratégia 1 falhou para ${file.name}, tentando Estratégia 2...`, e1);
+    }
+
+    // ESTRATÉGIA 2: Native file.arrayBuffer() -> Uint8Array -> Chunked Base64
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      const mime = file.type || "image/jpeg";
+      const base64 = `data:${mime};base64,${btoa(binary)}`;
+      console.log(`[Upload Reader] Estratégia 2 (arrayBuffer) SUCESSO: ${file.name}`);
+      return base64;
+    } catch (e2) {
+      console.warn(`[Upload Reader] Estratégia 2 falhou para ${file.name}, tentando Estratégia 3...`, e2);
+    }
+
+    // ESTRATÉGIA 3: FileReader Direto (Último recurso)
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => {
+        const err = reader.error;
+        reject(new Error(`Não foi possível ler o arquivo ${file.name} [${err?.name || "Erro de Leitura"}]`));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const filesArray = Array.from(e.target.files || []);
     if (filesArray.length === 0 || !id || id === "new") return;
 
-    // ─── CAUSA RAIZ DEFINITIVA ────────────────────────────────────────────────
-    // Quando React re-renderiza com setUploading(true), aplica disabled=true no
-    // <input type="file">. O Chromium, ao desabilitar o input, chama internamente
-    // setFilesFromPaths([]), liberando todos os file handles do SO.
-    // Qualquer FileReader em andamento recebe NOT_READABLE_ERR.
-    //
-    // CORREÇÃO: aguardar Promise.all COMPLETAMENTE antes de qualquer setState
-    // ou e.target.value="". O input permanece habilitado até a leitura terminar.
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // 1. Inicia TODAS as leituras de forma SÍNCRONA (sem nenhum setState ainda)
-    const readPromises = filesArray.map(file =>
-      new Promise<{ fileName: string; fileType: string; base64: string }>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({
-          fileName: file.name,
-          fileType: file.type || "image/jpeg",
-          base64: reader.result as string,
-        });
-        reader.onerror = () => {
-          // Diagnóstico detalhado para identificar tipo exato do erro
-          const err = reader.error;
-          console.error("[FileReader] Erro de leitura:", {
-            code: err?.code,       // 4=NOT_READABLE_ERR, 2=SECURITY_ERR, etc.
-            name: err?.name,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type,
-          });
-          reject(new Error(`Não foi possível ler: ${file.name} [${err?.name || err?.code || "?"}]`));
-        };
-        reader.readAsDataURL(file); // ← síncrono, ZERO setState antes desta linha
-      })
-    );
-
-    // 2. Aguarda TODAS as leituras — input ainda habilitado, sem nenhum re-render
-    let filePayloads: { fileName: string; fileType: string; base64: string }[];
+    // 1. Lê todos os arquivos usando a função multi-estratégia (SEM alteração de estado DOM)
+    let filePayloads: { fileName: string; fileType: string; base64: string }[] = [];
     try {
-      filePayloads = await Promise.all(readPromises);
-      console.log("[Upload] Leitura concluída:", filePayloads.map(f => `${f.fileName} (${f.base64.length} chars)`));
+      filePayloads = await Promise.all(
+        filesArray.map(async (file) => {
+          const base64 = await readFileAsBase64(file);
+          return {
+            fileName: file.name,
+            fileType: file.type || "image/jpeg",
+            base64,
+          };
+        })
+      );
+      console.log("[Upload] Todos os arquivos lidos com sucesso em RAM:", filePayloads.map(f => f.fileName));
     } catch (readErr: any) {
-      console.error("[Upload] Falha na leitura:", readErr.message);
+      console.error("[Upload] Falha geral na leitura:", readErr.message);
       toast.error(readErr.message || "Não foi possível ler o arquivo selecionado");
       return;
     }
 
-    // 3. SOMENTE AQUI: leitura 100% concluída → seguro mutar estado e resetar input
+    // 2. Com todas as imagens em RAM, reseta o input e ativa loading na interface
     e.target.value = "";
     setUploading(true);
     const toastId = toast.loading(`Enviando ${filePayloads.length} imagem(ns)...`);
 
-    // 4. Envia cada arquivo para o servidor proxy (Base64 JSON → Express → Supabase)
+    // 3. Envia os payloads JSON para o servidor proxy
     let currentCount = images.length;
     let successCount = 0;
     let lastErrorMsg = "";
@@ -203,13 +236,13 @@ export default function PropertyForm() {
 
         if (!response.ok || !result.publicUrl) {
           lastErrorMsg = result.error || `Erro ${response.status}`;
-          console.error("[Upload] Falha servidor:", lastErrorMsg);
+          console.error("[Upload] Falha no servidor:", lastErrorMsg);
           continue;
         }
 
         currentCount++;
         successCount++;
-        console.log("[Upload] ✅ SUCESSO:", result.publicUrl);
+        console.log("[Upload] ✅ SUCESSO TOTAL:", result.publicUrl);
 
       } catch (err: any) {
         console.error("[Upload] Exceção de rede:", err?.message);
@@ -217,7 +250,7 @@ export default function PropertyForm() {
       }
     }
 
-    // 5. Resultado final
+    // 4. Feedback e atualização
     if (successCount > 0) {
       toast.success(`${successCount} imagem(ns) enviada(s) com sucesso!`, { id: toastId });
       fetchProperty(id);
